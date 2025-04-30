@@ -1,7 +1,7 @@
 /**
  * File upload utility functions
  */
-import { getToken } from "@/local/local";
+import { getToken } from '@/local/local';
 import { v4 as uuidv4 } from 'uuid';
 
 /**
@@ -18,7 +18,7 @@ export const uploadFile = async (
   url: string,
   params?: Record<string, string>,
   headers?: Record<string, string>,
-  onProgress?: (progress: number) => void
+  onProgress?: (progress: number) => void,
 ): Promise<Response> => {
   // Create a new FormData instance
   const formData = new FormData();
@@ -52,10 +52,10 @@ export const uploadFile = async (
 
       // Add token headers
       if (token) {
-        xhr.setRequestHeader("Authorization", `Bearer ${token}`);
-        xhr.setRequestHeader("Token", token);
-        xhr.setRequestHeader("X-API-MODE", "admin");
-        xhr.setRequestHeader("X-Request-ID", uuidv4().replace(/-/g, ''));
+        xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+        xhr.setRequestHeader('Token', token);
+        xhr.setRequestHeader('X-API-MODE', 'admin');
+        xhr.setRequestHeader('X-Request-ID', uuidv4().replace(/-/g, ''));
       }
 
       xhr.upload.addEventListener('progress', (event) => {
@@ -71,15 +71,19 @@ export const uploadFile = async (
             status: xhr.status,
             statusText: xhr.statusText,
             headers: new Headers(
-              xhr.getAllResponseHeaders()
+              xhr
+                .getAllResponseHeaders()
                 .split('\r\n')
                 .filter(Boolean)
-                .reduce((acc, header) => {
-                  const [key, value] = header.split(': ');
-                  acc[key.toLowerCase()] = value;
-                  return acc;
-                }, {} as Record<string, string>)
-            )
+                .reduce(
+                  (acc, header) => {
+                    const [key, value] = header.split(': ');
+                    acc[key.toLowerCase()] = value;
+                    return acc;
+                  },
+                  {} as Record<string, string>,
+                ),
+            ),
           });
           resolve(response);
         } else {
@@ -105,10 +109,10 @@ export const uploadFile = async (
     if (token) {
       mergedHeaders = {
         ...mergedHeaders,
-        "Authorization": `Bearer ${token}`,
-        "Token": token,
-        "X-API-MODE": "admin",
-        "X-Request-ID": uuidv4().replace(/-/g, '')
+        Authorization: `Bearer ${token}`,
+        Token: token,
+        'X-API-MODE': 'admin',
+        'X-Request-ID': uuidv4().replace(/-/g, ''),
       };
     }
 
@@ -136,7 +140,7 @@ export const uploadMultipleFiles = async (
   url: string,
   fieldName: string = 'files',
   params?: Record<string, string>,
-  headers?: Record<string, string>
+  headers?: Record<string, string>,
 ): Promise<Response> => {
   const formData = new FormData();
 
@@ -162,10 +166,10 @@ export const uploadMultipleFiles = async (
   if (token) {
     mergedHeaders = {
       ...mergedHeaders,
-      "Authorization": `Bearer ${token}`,
-      "Token": token,
-      "X-API-MODE": "admin",
-      "X-Request-ID": uuidv4().replace(/-/g, '')
+      Authorization: `Bearer ${token}`,
+      Token: token,
+      'X-API-MODE': 'admin',
+      'X-Request-ID': uuidv4().replace(/-/g, ''),
     };
   }
 
@@ -192,7 +196,7 @@ export const uploadFileWithCustomName = async (
   customName: string,
   url: string,
   params?: Record<string, string>,
-  headers?: Record<string, string>
+  headers?: Record<string, string>,
 ): Promise<Response> => {
   // Create a new File object with the custom name
   const renamedFile = new File([file], customName, { type: file.type });
