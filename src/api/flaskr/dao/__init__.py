@@ -34,22 +34,22 @@ def init_db(app: Flask):
         app.logger.info("init dbconfig from config")
 
     if app.debug:
-        logging.getLogger('sqlalchemy.engine').setLevel(logging.WARNING)
+        logging.getLogger("sqlalchemy.engine").setLevel(logging.WARNING)
 
     db = SQLAlchemy()
     db.init_app(app)
 
     # Enable formatted SQL output in the development environment
     if app.debug:
+
         def setup_sql_logging():
             @event.listens_for(db.engine, "before_cursor_execute")
-            def before_cursor_execute(conn, cursor, statement, parameters, context, executemany):
+            def before_cursor_execute(
+                conn, cursor, statement, parameters, context, executemany
+            ):
                 # Format the SQL statement
                 formatted_sql = sqlparse.format(
-                    statement,
-                    reindent=True,
-                    keyword_case='upper',
-                    strip_comments=True
+                    statement, reindent=True, keyword_case="upper", strip_comments=True
                 )
 
                 # If there are parameters, try formatting
