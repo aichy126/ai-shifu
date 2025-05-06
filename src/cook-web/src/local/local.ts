@@ -36,3 +36,7 @@ export const getToken =  () => {
 export const setToken = async (token: string) => {
     return setLocalStore(USER_TOKEN, token);
 };
+
+export const clearToken = () => {
+    return setLocalStore(USER_TOKEN, '');
+};

@@ -1,7 +1,7 @@
 /* eslint-disable */
 import { getSiteHost } from "@/config/runtime-config";
 import { fail } from '@/hooks/use-toast';
-import { getToken } from "@/local/local";
+import { getToken, clearToken } from "@/local/local";
 import { v4 as uuidv4 } from 'uuid';
 
 export type RequestConfig = RequestInit & { params?: any; data?: any };
@@ -120,7 +120,8 @@ export class Request {
           return res;
         }
         if (location.pathname != '/login' && (res.code == 1001 || res.code == 1005 || res.code == 1004)) {
-            window.location.href = '/login';
+          clearToken();
+          window.location.href = '/login';
         }
         if (res.code == 0) {
           return res.data;
