@@ -188,7 +188,7 @@ export const ScenarioProvider: React.FC<{ children: ReactNode }> = ({ children }
                         ...list[0].children[0],
                         depth: 1,
                     });
-                    await loadBlocks(list[0].children[0].id);
+                    await loadBlocks(list[0].children[0].id, scenarioId);
                 }
             }
             setChapters(list);
@@ -261,11 +261,11 @@ export const ScenarioProvider: React.FC<{ children: ReactNode }> = ({ children }
         return list;
     }
 
-    const loadBlocks = async (outlineId: string) => {
+    const loadBlocks = async (outlineId: string, scenarioId: string) => {
         try {
             setIsLoading(true);
             setError(null);
-            const blocksData = await api.getBlocks({ outline_id: outlineId });
+            const blocksData = await api.getBlocks({ outline_id: outlineId, scenario_id: scenarioId });
             const list = blocksData.filter(p => p.type == 'block') as Block[];
             setBlocks(list);
             initBlockContentTypes(list);

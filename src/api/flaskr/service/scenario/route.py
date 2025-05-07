@@ -33,6 +33,49 @@ from flaskr.route.common import make_common_response
 from flaskr.framework.plugin.inject import inject
 from flaskr.service.common.models import raise_param_error
 from ..lesson.models import LESSON_TYPE_TRIAL
+from functools import wraps
+from enum import Enum
+
+class ScenarioPermission(Enum):
+    VIEW = "view"
+    EDIT = "edit"
+    DELETE = "delete"
+    PUBLISH = "publish"
+
+# Scene permission verification decorator
+# @ScenarioTokenValidation(ScenarioPermission.xxx)
+class ScenarioTokenValidation:
+    def __init__(self, permission: ScenarioPermission = ScenarioPermission.VIEW):
+        self.permission = permission
+
+    def __call__(self, f):
+        @wraps(f)
+        def decorated_function(*args, **kwargs):
+            token = request.cookies.get("token", None)
+            if not token:
+                token = request.args.get("token", None)
+            if not token:
+                token = request.headers.get("Token", None)
+            if not token and request.method.upper() == "POST" and request.is_json:
+                token = request.get_json().get("token", None)
+
+            scenario_id = request.args.get("scenario_id", None)
+            if not scenario_id and request.method.upper() == "POST" and request.is_json:
+                scenario_id = request.get_json().get("scenario_id", None)
+
+            if not token:
+                raise_param_error("token is required")
+            if not scenario_id:
+                raise_param_error("scenario_id is required")
+
+            print(f"token: {token}")
+            print(f"scenario_id: {scenario_id}")
+            print(f"permission: {self.permission.value}")
+
+            # TODO:....
+
+            return f(*args, **kwargs)
+        return decorated_function
 
 
 @inject
@@ -149,6 +192,7 @@ def register_scenario_routes(app: Flask, path_prefix="/api/scenario"):
         )
 
     @app.route(path_prefix + "/scenario-info", methods=["GET"])
+    @ScenarioTokenValidation(ScenarioPermission.VIEW)
     def get_scenario_info_api():
         """
         get scenario info
@@ -953,6 +997,7 @@ def register_scenario_routes(app: Flask, path_prefix="/api/scenario"):
         return make_common_response(delete_unit(app, user_id, unit_id))
 
     @app.route(path_prefix + "/outline-tree", methods=["GET"])
+    @ScenarioTokenValidation(ScenarioPermission.VIEW)
     def get_outline_tree_api():
         """
         get outline tree
@@ -987,6 +1032,7 @@ def register_scenario_routes(app: Flask, path_prefix="/api/scenario"):
         return make_common_response(get_outline_tree(app, user_id, scenario_id))
 
     @app.route(path_prefix + "/blocks", methods=["GET"])
+    @ScenarioTokenValidation(ScenarioPermission.VIEW)
     def get_block_list_api():
         """
         get block list
