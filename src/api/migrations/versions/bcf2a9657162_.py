@@ -10,6 +10,7 @@ import sqlalchemy as sa
 from sqlalchemy.orm import Session
 from sqlalchemy.dialects import mysql
 
+# Update profile_type column and clean up active_user_record statuses
 # revision identifiers, used by Alembic.
 revision = 'bcf2a9657162'
 down_revision = 'b7b8d3df0452'

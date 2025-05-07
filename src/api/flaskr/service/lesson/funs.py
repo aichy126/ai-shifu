@@ -10,7 +10,9 @@ from .const import (
     SCRIPT_TYPE_FIX,
     SCRIPT_TYPES,
     UI_TYPE_CONTINUED,
+    UI_TYPE_SELECTION,
     UI_TYPES,
+    STATUS_PUBLISH,
 )
 from flask import Flask
 from ...dao import db
@@ -302,7 +304,7 @@ def update_lesson_info(
     index: int = None,
     lesson_type: int = LESSON_TYPE_NORMAL,
     app_id: str = None,
-    app_secrect: str = None,
+    app_secret: str = None,
     course_id: str = None,
     file_name: str = None,
 ):
@@ -378,8 +380,8 @@ def update_lesson_info(
         kwargs = {}
         if app_id is not None:
             kwargs["app_id"] = app_id
-        if app_secrect is not None:
-            kwargs["app_secrect"] = app_secrect
+        if app_secret is not None:
+            kwargs["app_secret"] = app_secret
         while True:
             if file_name:
                 with open(file_name, "r") as json_file:
@@ -527,13 +529,16 @@ def update_lesson_info(
                     AILessonScript.script_feishu_id == record_id,
                     AILessonScript.lesson_id == lesson.lesson_id,
                 ).first()
+                if scripDb["script_ui_type"] == UI_TYPE_SELECTION:
+                    data = scripDb["script_ui_content"]
+                    app.logger.info("data:" + str(data))
+
                 if scrip is None:
                     scripDb["script_id"] = str(generate_id(app))
                     db.session.add(AILessonScript(**scripDb))
                 else:
                     for key in scripDb:
                         setattr(scrip, key, scripDb[key])
-                print("script_temprature:" + str(scripDb["script_temprature"]))
 
             if resp["data"]["has_more"]:
                 page_token = resp["data"]["page_token"]
@@ -590,7 +595,13 @@ def get_lessons(app: Flask, feshu_doc_id) -> AICourseDetailDTO:
 
 def get_lesson_detail(app: Flask, lesson_id: str) -> AILessonDetailDTO:
     with app.app_context():
-        lesson = AILesson.query.filter_by(lesson_id=lesson_id).first()
+        lesson = (
+            AILesson.query.filter(
+                AILesson.lesson_id == lesson_id, AILesson.status.in_([STATUS_PUBLISH])
+            )
+            .order_by(AILesson.id.desc())
+            .first()
+        )
         if lesson is None:
             return None
         return AILessonDetailDTO(
@@ -707,11 +718,22 @@ def update_course_info(
 def get_course_info(app: Flask, course_id: str) -> AICourseDTO:
     with app.app_context():
         if course_id is None or course_id == "":
-            course = AICourse.query.filter(AICourse.status == 1).first()
+            course = (
+                AICourse.query.filter(AICourse.status == 1)
+                .order_by(AICourse.id.desc())
+                .first()
+            )
             if course is None:
                 raise_error("LESSON.HAS_NOT_LESSON")
         else:
-            course = AICourse.query.filter(AICourse.course_id == course_id).first()
+            course = (
+                AICourse.query.filter(
+                    AICourse.course_id == course_id,
+                    AICourse.status.in_([STATUS_PUBLISH]),
+                )
+                .order_by(AICourse.id.desc())
+                .first()
+            )
             if course is None:
                 raise_error("LESSON.COURSE_NOT_FOUND")
 

@@ -5,7 +5,7 @@ from flask import Flask
 from flaskr.service.lesson.const import (
     CONTENT_TYPE_IMAGE,
     SCRIPT_TYPE_FIX,
-    SCRIPT_TYPE_PORMPT,
+    SCRIPT_TYPE_PROMPT,
 )
 from flaskr.api.llm import invoke_llm
 from flaskr.service.common.models import AppException
@@ -42,6 +42,7 @@ def generate_fix_output(
         prompt = get_fmt_prompt(
             app,
             user_id,
+            attend.course_id,
             script_info.script_prompt,
             profile_array_str=script_info.script_profile,
         )
@@ -78,11 +79,14 @@ def generate_prompt_output(
     span = trace.span(name="prompt_sript")
     system = get_lesson_system(app, script_info.lesson_id)
     system_prompt = (
-        None if system is None or system == "" else get_fmt_prompt(app, user_id, system)
+        None
+        if system is None or system == ""
+        else get_fmt_prompt(app, user_id, attend.course_id, system)
     )
     prompt = get_fmt_prompt(
         app,
         user_id,
+        attend.course_id,
         script_info.script_prompt,
         profile_array_str=script_info.script_profile,
     )
@@ -124,7 +128,7 @@ def generate_prompt_output(
 
 OUTPUT_HANDLERS = {
     SCRIPT_TYPE_FIX: generate_fix_output,
-    SCRIPT_TYPE_PORMPT: generate_prompt_output,
+    SCRIPT_TYPE_PROMPT: generate_prompt_output,
 }
 
 
