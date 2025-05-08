@@ -77,16 +77,3 @@ class AiCourseAuth(db.Model):
         onupdate=func.now(),
         comment="Update time",
     )
-    # def __init__(
-    #     self,
-    #     course_auth_id,
-    #     course_id,
-    #     user_id,
-    #     auth_type="[]",
-    #     status=0,
-    # ):
-    #     self.course_auth_id = course_auth_id
-    #     self.course_id = course_id
-    #     self.user_id = user_id
-    #     self.auth_type = auth_type
-    #     self.status = status
