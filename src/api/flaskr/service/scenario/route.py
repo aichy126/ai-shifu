@@ -86,6 +86,7 @@ class ScenarioTokenValidation:
 @inject
 def register_scenario_routes(app: Flask, path_prefix="/api/scenario"):
     app.logger.info(f"register scenario routes {path_prefix}")
+
     @app.route(path_prefix + "/scenarios", methods=["GET"])
     def get_scenario_list_api():
         """
