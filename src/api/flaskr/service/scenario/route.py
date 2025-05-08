@@ -32,7 +32,7 @@ from .block_funcs import (
 )
 from flaskr.route.common import make_common_response
 from flaskr.framework.plugin.inject import inject
-from flaskr.service.common.models import raise_param_error
+from flaskr.service.common.models import raise_param_error, raise_error
 from ..lesson.models import LESSON_TYPE_TRIAL
 from functools import wraps
 from enum import Enum
@@ -76,7 +76,7 @@ class ScenarioTokenValidation:
                 app, user_id, scenario_id, self.permission.value
             )
             if not has_permission:
-                raise_param_error("no permission")
+                raise_error("SCENARIO.NO_PERMISSION")
 
             return f(*args, **kwargs)
 
@@ -86,9 +86,7 @@ class ScenarioTokenValidation:
 @inject
 def register_scenario_routes(app: Flask, path_prefix="/api/scenario"):
     app.logger.info(f"register scenario routes {path_prefix}")
-
     @app.route(path_prefix + "/scenarios", methods=["GET"])
-    @ScenarioTokenValidation(ScenarioPermission.VIEW)
     def get_scenario_list_api():
         """
         get scenario list
@@ -1185,7 +1183,6 @@ def register_scenario_routes(app: Flask, path_prefix="/api/scenario"):
         )
 
     @app.route(path_prefix + "/upfile", methods=["POST"])
-    @ScenarioTokenValidation(ScenarioPermission.EDIT)
     def upfile_api():
         """
         upfile to oss

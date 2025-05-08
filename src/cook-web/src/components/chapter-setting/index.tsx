@@ -8,8 +8,10 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { SlidersHorizontal } from 'lucide-react';
 import api from '@/api';
 import Loading from '../loading';
+import { useScenario } from '@/store';
 
 const ChapterSettingsDialog = ({ unitId, onOpenChange }: { unitId: string; onOpenChange?: (open: boolean) => void }) => {
+    const { currentScenario } = useScenario();
     const [open, setOpen] = useState(false);
     const [chapterType, setChapterType] = useState("normal");
     const [systemPrompt, setSystemPrompt] = useState("");
@@ -33,7 +35,8 @@ const ChapterSettingsDialog = ({ unitId, onOpenChange }: { unitId: string; onOpe
             "unit_id": unitId,
             "unit_is_hidden": hideChapter,
             "unit_system_prompt": systemPrompt,
-            "unit_type": chapterType
+            "unit_type": chapterType,
+            "scenario_id": currentScenario?.id
         })
         setOpen(false);
     }
