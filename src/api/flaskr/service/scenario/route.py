@@ -37,10 +37,12 @@ from ..lesson.models import LESSON_TYPE_TRIAL
 from functools import wraps
 from enum import Enum
 
+
 class ScenarioPermission(Enum):
     VIEW = "view"
     EDIT = "edit"
     PUBLISH = "publish"
+
 
 # Scene permission verification decorator
 # @ScenarioTokenValidation(ScenarioPermission.xxx)
@@ -70,11 +72,14 @@ class ScenarioTokenValidation:
 
             user_id = request.user.user_id
             app = current_app._get_current_object()
-            has_permission = scenario_permission_verification(app, user_id, scenario_id, self.permission.value)
+            has_permission = scenario_permission_verification(
+                app, user_id, scenario_id, self.permission.value
+            )
             if not has_permission:
                 raise_param_error("no permission")
 
             return f(*args, **kwargs)
+
         return decorated_function
 
 

@@ -56,11 +56,13 @@ class AiCourseAuth(db.Model):
     __tablename__ = "ai_course_auth"
     id = Column(BIGINT, primary_key=True, autoincrement=True)
     course_auth_id = Column(
-        String(36), nullable=False, default="", comment="course_auth_id UUID", index=True
+        String(36),
+        nullable=False,
+        default="",
+        comment="course_auth_id UUID",
+        index=True,
     )
-    course_id = Column(
-        String(36), nullable=False, default="", comment="course_id UUID"
-    )
+    course_id = Column(String(36), nullable=False, default="", comment="course_id UUID")
     user_id = Column(String(36), nullable=False, default="", comment="User UUID")
     # 1 read 2 write 3 delete 4 publish
     auth_type = Column(String(255), nullable=False, default="[]", comment="auth_info")

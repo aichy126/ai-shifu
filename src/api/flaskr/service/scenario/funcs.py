@@ -533,7 +533,13 @@ def scenario_permission_verification(
     auth_type: str,
 ):
     with app.app_context():
-        cache_key = get_config("REDIS_KEY_PREFIX", "ai-shifu") + ":scenario_permission:" + user_id + ":" + scenario_id
+        cache_key = (
+            get_config("REDIS_KEY_PREFIX", "ai-shifu")
+            + ":scenario_permission:"
+            + user_id
+            + ":"
+            + scenario_id
+        )
         cache_key_expire = int(get_config("SCENARIO_PERMISSION_CACHE_EXPIRE", "1"))
         cache_result = redis.get(cache_key)
         if cache_result is not None:
@@ -543,24 +549,19 @@ def scenario_permission_verification(
             except (json.JSONDecodeError, TypeError):
                 redis.delete(cache_key)
         # If it is not in the cache, query the database
-        scenario = (
-            AICourse.query.filter(
-                AICourse.course_id == scenario_id,
-                AICourse.created_user_id == user_id
-            )
-            .first()
-        )
+        scenario = AICourse.query.filter(
+            AICourse.course_id == scenario_id, AICourse.created_user_id == user_id
+        ).first()
         if scenario:
             # The creator has all the permissions
             # Cache all permissions
             all_auth_types = ["view", "edit", "publish"]
-            redis.set(cache_key, json.dumps(all_auth_types),cache_key_expire)
+            redis.set(cache_key, json.dumps(all_auth_types), cache_key_expire)
             return True
         else:
             # Collaborators need to verify specific permissions
             auth = AiCourseAuth.query.filter(
-                AiCourseAuth.course_id == scenario_id,
-                AiCourseAuth.user_id == user_id
+                AiCourseAuth.course_id == scenario_id, AiCourseAuth.user_id == user_id
             ).first()
             if auth:
                 try:
