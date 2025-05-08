@@ -1,4 +1,4 @@
-from flask import Flask, request
+from flask import Flask, request, current_app
 from .funcs import (
     get_scenario_list,
     create_scenario,
@@ -9,6 +9,7 @@ from .funcs import (
     save_scenario_detail,
     get_scenario_detail,
     upload_file,
+    scenario_permission_verification,
 )
 from .chapter_funcs import (
     get_chapter_list,
@@ -39,7 +40,6 @@ from enum import Enum
 class ScenarioPermission(Enum):
     VIEW = "view"
     EDIT = "edit"
-    DELETE = "delete"
     PUBLISH = "publish"
 
 # Scene permission verification decorator
@@ -72,7 +72,12 @@ class ScenarioTokenValidation:
             print(f"scenario_id: {scenario_id}")
             print(f"permission: {self.permission.value}")
 
-            # TODO:....
+            user_id = request.user.user_id
+            app = current_app._get_current_object()
+            has_permission = scenario_permission_verification(app, user_id, scenario_id, self.permission.value)
+            print(f"=======has_permission=======: {has_permission}")
+            if not has_permission:
+                raise_param_error("no permission")
 
             return f(*args, **kwargs)
         return decorated_function
@@ -83,6 +88,7 @@ def register_scenario_routes(app: Flask, path_prefix="/api/scenario"):
     app.logger.info(f"register scenario routes {path_prefix}")
 
     @app.route(path_prefix + "/scenarios", methods=["GET"])
+    @ScenarioTokenValidation(ScenarioPermission.VIEW)
     def get_scenario_list_api():
         """
         get scenario list
@@ -139,6 +145,7 @@ def register_scenario_routes(app: Flask, path_prefix="/api/scenario"):
         )
 
     @app.route(path_prefix + "/create-scenario", methods=["POST"])
+    @ScenarioTokenValidation(ScenarioPermission.EDIT)
     def create_scenario_api():
         """
         create scenario
@@ -226,6 +233,7 @@ def register_scenario_routes(app: Flask, path_prefix="/api/scenario"):
         return make_common_response(get_scenario_info(app, user_id, scenario_id))
 
     @app.route(path_prefix + "/scenario-detail", methods=["GET"])
+    @ScenarioTokenValidation(ScenarioPermission.VIEW)
     def get_scenario_detail_api():
         """
         get scenario detail
@@ -259,6 +267,7 @@ def register_scenario_routes(app: Flask, path_prefix="/api/scenario"):
         return make_common_response(get_scenario_detail(app, user_id, scenario_id))
 
     @app.route(path_prefix + "/save-scenario-detail", methods=["POST"])
+    @ScenarioTokenValidation(ScenarioPermission.EDIT)
     def save_scenario_detail_api():
         """
         save scenario detail
@@ -388,6 +397,7 @@ def register_scenario_routes(app: Flask, path_prefix="/api/scenario"):
         )
 
     @app.route(path_prefix + "/publish-scenario", methods=["POST"])
+    @ScenarioTokenValidation(ScenarioPermission.PUBLISH)
     def publish_scenario_api():
         """
         publish scenario
@@ -428,6 +438,7 @@ def register_scenario_routes(app: Flask, path_prefix="/api/scenario"):
         return make_common_response(publish_scenario(app, user_id, scenario_id))
 
     @app.route(path_prefix + "/preview-scenario", methods=["POST"])
+    @ScenarioTokenValidation(ScenarioPermission.VIEW)
     def preview_scenario_api():
         """
         preview scenario
@@ -477,6 +488,7 @@ def register_scenario_routes(app: Flask, path_prefix="/api/scenario"):
         )
 
     @app.route(path_prefix + "/chapters", methods=["GET"])
+    @ScenarioTokenValidation(ScenarioPermission.VIEW)
     def get_chapter_list_api():
         """
         get chapter list
@@ -496,6 +508,7 @@ def register_scenario_routes(app: Flask, path_prefix="/api/scenario"):
         return make_common_response(get_chapter_list(app, user_id, scenario_id))
 
     @app.route(path_prefix + "/create-chapter", methods=["POST"])
+    @ScenarioTokenValidation(ScenarioPermission.EDIT)
     def create_chapter_api():
         """
         create chapter
@@ -568,6 +581,7 @@ def register_scenario_routes(app: Flask, path_prefix="/api/scenario"):
         )
 
     @app.route(path_prefix + "/modify-chapter", methods=["POST"])
+    @ScenarioTokenValidation(ScenarioPermission.EDIT)
     def modify_chapter_api():
         """
         modify chapter
@@ -636,6 +650,7 @@ def register_scenario_routes(app: Flask, path_prefix="/api/scenario"):
         )
 
     @app.route(path_prefix + "/delete-chapter", methods=["POST"])
+    @ScenarioTokenValidation(ScenarioPermission.EDIT)
     def delete_chapter_api():
         """
         delete chapter
@@ -677,6 +692,7 @@ def register_scenario_routes(app: Flask, path_prefix="/api/scenario"):
         return make_common_response(delete_unit(app, user_id, chapter_id))
 
     @app.route(path_prefix + "/update-chapter-order", methods=["POST"])
+    @ScenarioTokenValidation(ScenarioPermission.EDIT)
     def update_chapter_order_api():
         """
         update chapter order
@@ -730,6 +746,7 @@ def register_scenario_routes(app: Flask, path_prefix="/api/scenario"):
         )
 
     @app.route(path_prefix + "/units", methods=["GET"])
+    @ScenarioTokenValidation(ScenarioPermission.VIEW)
     def get_unit_list_api():
         """
         get unit list
@@ -770,6 +787,7 @@ def register_scenario_routes(app: Flask, path_prefix="/api/scenario"):
         )
 
     @app.route(path_prefix + "/create-unit", methods=["POST"])
+    @ScenarioTokenValidation(ScenarioPermission.EDIT)
     def create_unit_api():
         """
         create unit
@@ -850,6 +868,7 @@ def register_scenario_routes(app: Flask, path_prefix="/api/scenario"):
         )
 
     @app.route(path_prefix + "/modify-unit", methods=["POST"])
+    @ScenarioTokenValidation(ScenarioPermission.EDIT)
     def modify_unit_api():
         """
         modify unit
@@ -925,6 +944,7 @@ def register_scenario_routes(app: Flask, path_prefix="/api/scenario"):
         )
 
     @app.route(path_prefix + "/unit-info", methods=["GET"])
+    @ScenarioTokenValidation(ScenarioPermission.VIEW)
     def get_unit_info_api():
         """
         get unit info
@@ -958,6 +978,7 @@ def register_scenario_routes(app: Flask, path_prefix="/api/scenario"):
         return make_common_response(get_unit_by_id(app, user_id, unit_id))
 
     @app.route(path_prefix + "/delete-unit", methods=["POST"])
+    @ScenarioTokenValidation(ScenarioPermission.EDIT)
     def delete_unit_api():
         """
         delete unit
@@ -1067,6 +1088,7 @@ def register_scenario_routes(app: Flask, path_prefix="/api/scenario"):
         return make_common_response(get_block_list(app, user_id, outline_id))
 
     @app.route(path_prefix + "/save-blocks", methods=["POST"])
+    @ScenarioTokenValidation(ScenarioPermission.EDIT)
     def save_blocks_api():
         """
         save blocks
@@ -1112,6 +1134,7 @@ def register_scenario_routes(app: Flask, path_prefix="/api/scenario"):
         return make_common_response(save_block_list(app, user_id, outline_id, blocks))
 
     @app.route(path_prefix + "/add-block", methods=["POST"])
+    @ScenarioTokenValidation(ScenarioPermission.EDIT)
     def add_block_api():
         """
         add block
@@ -1162,6 +1185,7 @@ def register_scenario_routes(app: Flask, path_prefix="/api/scenario"):
         )
 
     @app.route(path_prefix + "/upfile", methods=["POST"])
+    @ScenarioTokenValidation(ScenarioPermission.EDIT)
     def upfile_api():
         """
         upfile to oss
