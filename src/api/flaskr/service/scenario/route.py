@@ -68,14 +68,9 @@ class ScenarioTokenValidation:
             if not scenario_id:
                 raise_param_error("scenario_id is required")
 
-            print(f"token: {token}")
-            print(f"scenario_id: {scenario_id}")
-            print(f"permission: {self.permission.value}")
-
             user_id = request.user.user_id
             app = current_app._get_current_object()
             has_permission = scenario_permission_verification(app, user_id, scenario_id, self.permission.value)
-            print(f"=======has_permission=======: {has_permission}")
             if not has_permission:
                 raise_param_error("no permission")
 
