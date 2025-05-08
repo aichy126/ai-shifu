@@ -144,7 +144,6 @@ def register_scenario_routes(app: Flask, path_prefix="/api/scenario"):
         )
 
     @app.route(path_prefix + "/create-scenario", methods=["POST"])
-    @ScenarioTokenValidation(ScenarioPermission.EDIT)
     def create_scenario_api():
         """
         create scenario
