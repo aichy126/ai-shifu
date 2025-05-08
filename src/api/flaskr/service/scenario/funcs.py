@@ -534,8 +534,8 @@ def scenario_permission_verification(
 ):
     with app.app_context():
         cache_key = (
-            get_config("REDIS_KEY_PREFIX", "ai-shifu")
-            + ":scenario_permission:"
+            get_config("REDIS_KEY_PREFIX", "ai-shifu:")
+            + "scenario_permission:"
             + user_id
             + ":"
             + scenario_id
