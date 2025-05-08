@@ -22,13 +22,14 @@ const ChapterSettingsDialog = ({ unitId, onOpenChange }: { unitId: string; onOpe
         setOpen(true);
         setLoading(true);
         const result = await api.getUnitInfo({
-            unit_id: unitId
+            unit_id: unitId,
+            scenario_id: currentScenario?.id
         })
         setChapterType(result.type);
         setSystemPrompt(result.system_prompt);
         setHideChapter(result.is_hidden);
         setLoading(false);
-    }, [unitId]);
+    }, [unitId, currentScenario?.id]);
 
     const onConfirm = async () => {
         await api.modifyUnit({

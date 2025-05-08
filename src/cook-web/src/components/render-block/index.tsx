@@ -61,7 +61,7 @@ export const RenderBlockContent = ({ id, type, properties }) => {
             return;
         }
         setIsEdit(false)
-        await actions.saveBlocks(id);
+        await actions.saveBlocks(currentScenario?.id || '');
     }
     const onRemove = async () => {
         setShowDeleteDialog(true)
@@ -69,7 +69,7 @@ export const RenderBlockContent = ({ id, type, properties }) => {
 
     const handleConfirmDelete = async () => {
         if (!currentNode?.id) return;
-        await actions.removeBlock(id, currentNode.id);
+        await actions.removeBlock(id, currentScenario?.id || '');
         setShowDeleteDialog(false)
     }
 
