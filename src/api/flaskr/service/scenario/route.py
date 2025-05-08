@@ -67,7 +67,7 @@ class ScenarioTokenValidation:
 
             if not token:
                 raise_param_error("token is required")
-            if not scenario_id:
+            if not scenario_id or not str(scenario_id).strip():
                 raise_param_error("scenario_id is required")
 
             user_id = request.user.user_id
