@@ -37,10 +37,19 @@ def upgrade():
         ),
         sa.Column("status", sa.Integer(), nullable=False, comment="Status"),
         sa.Column(
-            "created_at", sa.TIMESTAMP(), nullable=False, comment="Creation time", server_default=sa.text("CURRENT_TIMESTAMP")
-),
-        sa.Column("updated_at", sa.TIMESTAMP(), nullable=False, comment="Update time", server_default=sa.text("CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP")
-),
+            "created_at",
+            sa.TIMESTAMP(),
+            nullable=False,
+            comment="Creation time",
+            server_default=sa.text("CURRENT_TIMESTAMP"),
+        ),
+        sa.Column(
+            "updated_at",
+            sa.TIMESTAMP(),
+            nullable=False,
+            comment="Update time",
+            server_default=sa.text("CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP"),
+        ),
         sa.PrimaryKeyConstraint("id"),
     )
     with op.batch_alter_table("ai_course_auth", schema=None) as batch_op:
