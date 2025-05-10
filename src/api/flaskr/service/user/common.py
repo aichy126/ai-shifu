@@ -106,7 +106,7 @@ def validate_user(app: Flask, token: str) -> UserInfo:
             app.logger.info("user_id:" + user_id)
             redis_user_id = redis.get(app.config["REDIS_KEY_PREFIX_USER"] + token)
             if redis_user_id is None:
-                    raise_error("USER.USER_TOKEN_EXPIRED")
+                raise_error("USER.USER_TOKEN_EXPIRED")
             set_user_id = str(
                 redis_user_id,
                 encoding="utf-8",
