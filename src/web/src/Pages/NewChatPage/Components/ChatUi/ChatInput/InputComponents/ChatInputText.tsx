@@ -1,14 +1,14 @@
-import { useState, useEffect, useRef } from 'react';
 import { message } from 'antd';
-import { useTranslation } from 'react-i18next';
 import {
-  INTERACTION_TYPE,
   INTERACTION_OUTPUT_TYPE,
+  INTERACTION_TYPE,
 } from 'constants/courseConstants';
+import { useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
-import styles from './ChatInputText.module.scss';
 import { memo } from 'react';
 import { registerInteractionType } from '../interactionRegistry';
+import styles from './ChatInputText.module.scss';
 
 const OUTPUT_TYPE_MAP = {
   [INTERACTION_TYPE.INPUT]: INTERACTION_OUTPUT_TYPE.TEXT,
@@ -28,7 +28,7 @@ interface ChatInputProps {
 }
 
 export const ChatInputText = ({ onClick, type, disabled = false, props = {} }: ChatInputProps) => {
-  const {t}= useTranslation();
+  const { t } = useTranslation();
   const [input, setInput] = useState('');
   const [messageApi, contextHolder] = message.useMessage();
   const [isComposing, setIsComposing] = useState(false);
@@ -38,12 +38,15 @@ export const ChatInputText = ({ onClick, type, disabled = false, props = {} }: C
   const outputType = OUTPUT_TYPE_MAP[type];
 
   const onSendClick = async () => {
+    if (disabled) {
+      return;
+    }
     if (input.trim() === '') {
       messageApi.warning(t('chat.chatInputWarn'));
       return;
     }
 
-    onClick?.(outputType, true,input.trim());
+    onClick?.(outputType, true, input.trim());
     setInput('');
 
     if (textareaRef.current) {
@@ -68,7 +71,10 @@ export const ChatInputText = ({ onClick, type, disabled = false, props = {} }: C
     }
 
     textarea.style.height = 'auto';
-    const newHeight = Math.min(textarea.scrollHeight-20, 120);
+    const computed = window.getComputedStyle(textarea);
+    const padding =
+      parseFloat(computed.paddingTop) + parseFloat(computed.paddingBottom);
+    const newHeight = Math.min(textarea.scrollHeight - padding, 120);
     textarea.style.height = `${newHeight}px`;
 
     if (!currentValue) {
@@ -139,7 +145,6 @@ export const ChatInputText = ({ onClick, type, disabled = false, props = {} }: C
             autoCapitalize="off"
             autoCorrect="off"
             data-gramm="false"
-            contentEditable="true"
             suppressContentEditableWarning={true}
           />
           <img src={require('@Assets/newchat/light/icon-send.png')} alt="" className={styles.sendIcon} onClick={onSendClick} />
