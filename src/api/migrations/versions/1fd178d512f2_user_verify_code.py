@@ -36,7 +36,7 @@ def upgrade():
         sa.Column(
             "verify_code_type", sa.Integer(), nullable=False, comment="Verify code type"
         ),
-         sa.Column(
+        sa.Column(
             "verify_code_send",
             sa.Integer(),
             nullable=False,
