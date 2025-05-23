@@ -459,43 +459,43 @@ def upload_url(app, user_id: str, url: str) -> str:
         FILE_BASE_URL = get_config("ALIBABA_CLOUD_OSS_COURSES_URL", None)
         BUCKET_NAME = get_config("ALIBABA_CLOUD_OSS_COURSES_BUCKET", None)
 
-        if not ALI_API_ID or not ALI_API_SECRET or ALI_API_ID == "" or ALI_API_SECRET == "":
+        if (
+            not ALI_API_ID
+            or not ALI_API_SECRET
+            or ALI_API_ID == ""
+            or ALI_API_SECRET == ""
+        ):
             raise_error_with_args(
                 "API.ALIBABA_CLOUD_NOT_CONFIGURED",
                 config_var="ALIBABA_CLOUD_OSS_COURSES_ACCESS_KEY_ID,ALIBABA_CLOUD_OSS_COURSES_ACCESS_KEY_SECRET",
             )
 
-        # 从URL下载图片
         try:
             headers = {
-                'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-                'Accept': 'image/webp,image/apng,image/*,*/*;q=0.8',
-                'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
-                'Referer': url,
-                'Connection': 'keep-alive',
+                "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+                "Accept": "image/webp,image/apng,image/*,*/*;q=0.8",
+                "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
+                "Referer": url,
+                "Connection": "keep-alive",
             }
 
             response = requests.get(url, headers=headers, timeout=10)
             response.raise_for_status()
 
-            # 检查Content-Type是否为图片
-            content_type = response.headers.get('Content-Type', '')
-            if not content_type.startswith('image/'):
+            content_type = response.headers.get("Content-Type", "")
+            if not content_type.startswith("image/"):
                 app.logger.error(f"Invalid content type: {content_type}")
                 raise_error("FILE.FILE_TYPE_NOT_SUPPORT")
 
             file_content = BytesIO(response.content)
 
-            # 获取文件扩展名
-            filename = url.split('/')[-1]
-            if '?' in filename:  # 移除URL参数
-                filename = filename.split('?')[0]
+            filename = url.split("/")[-1]
+            if "?" in filename:
+                filename = filename.split("?")[0]
             content_type = get_content_type(filename)
 
-            # 生成唯一文件ID
             file_id = str(uuid.uuid4()).replace("-", "")
 
-            # 上传到OSS
             auth = oss2.Auth(ALI_API_ID, ALI_API_SECRET)
             bucket = oss2.Bucket(auth, endpoint, BUCKET_NAME)
             bucket.put_object(
@@ -504,10 +504,8 @@ def upload_url(app, user_id: str, url: str) -> str:
                 headers={"Content-Type": content_type},
             )
 
-            # 生成访问URL
             url = FILE_BASE_URL + "/" + file_id
 
-            # 保存资源记录
             resource = Resource(
                 resource_id=file_id,
                 name=filename,
@@ -670,11 +668,7 @@ def shifu_permission_verification(
 
 def get_video_info(app, user_id: str, url: str) -> dict:
     """
-    获取视频信息
-    :param app: Flask应用实例
-    :param user_id: 用户ID
-    :param url: 视频URL
-    :return: 包含视频信息的字典
+    Obtain video information
     """
     with app.app_context():
         try:
@@ -682,21 +676,14 @@ def get_video_info(app, user_id: str, url: str) -> dict:
             domain = parsed_url.netloc
 
             if 'bilibili.com' in domain:
-                # 检查URL格式是否正确
                 bv_pattern = r'/video/(BV\w+)'
                 match = re.search(bv_pattern, url)
                 if not match:
-                    return {
-                        'success': False,
-                        'message': '无效的B站视频链接，请确保链接包含 /video/BV 格式',
-                        'data': None
-                    }
+                    raise_error("FILE.VIDEO_INVALID_BILIBILI_LINK")
 
                 bv_id = match.group(1)
-                # 使用B站API获取视频信息
                 api_url = f'https://api.bilibili.com/x/web-interface/view?bvid={bv_id}'
 
-                # 添加请求头信息
                 headers = {
                     'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
                     'Accept': 'application/json, text/plain, */*',
@@ -720,23 +707,11 @@ def get_video_info(app, user_id: str, url: str) -> dict:
                                 'duration': video_data['duration']
                         }
                     else:
-                        return {
-                            'success': False,
-                            'message': f'获取视频信息失败: {data["message"]}',
-                        }
+                        raise_error("FILE.VIDEO_BILIBILI_API_ERROR")
                 else:
-                    return {
-                        'success': False,
-                        'message': '请求B站API失败',
-                    }
+                    raise_error("FILE.VIDEO_BILIBILI_API_REQUEST_FAILED")
             else:
-                return {
-                    'success': False,
-                    'message': '暂不支持该视频网站',
-                }
+                raise_error("FILE.VIDEO_UNSUPPORTED_VIDEO_SITE")
 
         except Exception as e:
-            return {
-                'success': False,
-                'message': f'获取视频信息时发生错误: {str(e)}',
-            }
+            raise_error("FILE.VIDEO_GET_INFO_ERROR")
