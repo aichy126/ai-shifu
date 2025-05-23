@@ -10,6 +10,7 @@ from .funcs import (
     get_shifu_detail,
     upload_file,
     upload_url,
+    get_video_info,
     shifu_permission_verification,
 )
 from .outline_funcs import (
@@ -1200,10 +1201,45 @@ def register_shifu_routes(app: Flask, path_prefix="/api/shifu"):
     def upload_url_api():
         """
         upload url to oss
+        ---
+        tags:
+            - shifu
+        parameters:
+            - in: body
+              name: body
+              required: true
+              schema:
+                type: object
+                properties:
+                    url:
+                        type: string
+                        description: url
         """
         user_id = request.user.user_id
         url = request.get_json().get("url")
         return make_common_response(upload_url(app, user_id, url))
+
+    @app.route(path_prefix + "/get-video-info", methods=["POST"])
+    def get_video_info_api():
+        """
+        get video info
+        ---
+        tags:
+            - shifu
+        parameters:
+            - in: body
+              name: body
+              required: true
+              schema:
+                type: object
+                properties:
+                    url:
+                        type: string
+                        description: url
+        """
+        user_id = request.user.user_id
+        url = request.get_json().get("url")
+        return make_common_response(get_video_info(app, user_id, url))
 
     return app
 
