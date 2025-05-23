@@ -1206,6 +1206,3 @@ def register_shifu_routes(app: Flask, path_prefix="/api/shifu"):
         return make_common_response(upload_url(app, user_id, url))
 
     return app
-
-
-
