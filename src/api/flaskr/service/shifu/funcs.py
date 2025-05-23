@@ -471,6 +471,9 @@ def upload_url(app, user_id: str, url: str) -> str:
             )
 
         try:
+            parsed_url = urlparse(url)
+            clean_url = f"{parsed_url.scheme}://{parsed_url.netloc}{parsed_url.path}"
+
             headers = {
                 "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
                 "Accept": "image/webp,image/apng,image/*,*/*;q=0.8",
@@ -479,7 +482,8 @@ def upload_url(app, user_id: str, url: str) -> str:
                 "Connection": "keep-alive",
             }
 
-            response = requests.get(url, headers=headers, timeout=10)
+            app.logger.info(f"Downloading image from URL: {clean_url}")
+            response = requests.get(clean_url, headers=headers, timeout=10)
             response.raise_for_status()
 
             content_type = response.headers.get("Content-Type", "")
@@ -489,15 +493,21 @@ def upload_url(app, user_id: str, url: str) -> str:
 
             file_content = BytesIO(response.content)
 
-            filename = url.split("/")[-1]
-            if "?" in filename:
-                filename = filename.split("?")[0]
-            content_type = get_content_type(filename)
+            filename = parsed_url.path.split("/")[-1]
+            if "." not in filename:
+                ext = content_type.split("/")[-1]
+                if ext in ["jpeg", "png", "gif"]:
+                    filename = f"{filename}.{ext}"
+                else:
+                    filename = f"{filename}.jpg"
 
+            content_type = get_content_type(filename)
             file_id = str(uuid.uuid4()).replace("-", "")
 
             auth = oss2.Auth(ALI_API_ID, ALI_API_SECRET)
             bucket = oss2.Bucket(auth, endpoint, BUCKET_NAME)
+
+            app.logger.info(f"Uploading image to OSS with file_id: {file_id}")
             bucket.put_object(
                 file_id,
                 file_content,
@@ -524,10 +534,12 @@ def upload_url(app, user_id: str, url: str) -> str:
             return url
 
         except requests.RequestException as e:
-            app.logger.error(f"Failed to download image from URL: {e}")
+            app.logger.error(
+                f"Failed to download image from URL: {url}, error: {str(e)}"
+            )
             raise_error("FILE.FILE_DOWNLOAD_FAILED")
         except Exception as e:
-            app.logger.error(f"Failed to upload image to OSS: {e}")
+            app.logger.error(f"Failed to upload image to OSS: {url}, error: {str(e)}")
             raise_error("FILE.FILE_UPLOAD_FAILED")
 
 
@@ -675,36 +687,36 @@ def get_video_info(app, user_id: str, url: str) -> dict:
             parsed_url = urlparse(url)
             domain = parsed_url.netloc
 
-            if 'bilibili.com' in domain:
-                bv_pattern = r'/video/(BV\w+)'
+            if "bilibili.com" in domain:
+                bv_pattern = r"/video/(BV\w+)"
                 match = re.search(bv_pattern, url)
                 if not match:
                     raise_error("FILE.VIDEO_INVALID_BILIBILI_LINK")
 
                 bv_id = match.group(1)
-                api_url = f'https://api.bilibili.com/x/web-interface/view?bvid={bv_id}'
+                api_url = f"https://api.bilibili.com/x/web-interface/view?bvid={bv_id}"
 
                 headers = {
-                    'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-                    'Accept': 'application/json, text/plain, */*',
-                    'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
-                    'Referer': 'https://www.bilibili.com',
-                    'Origin': 'https://www.bilibili.com',
-                    'Connection': 'keep-alive'
+                    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+                    "Accept": "application/json, text/plain, */*",
+                    "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
+                    "Referer": "https://www.bilibili.com",
+                    "Origin": "https://www.bilibili.com",
+                    "Connection": "keep-alive",
                 }
 
                 response = requests.get(api_url, headers=headers)
                 if response.status_code == 200:
                     data = response.json()
-                    if data['code'] == 0:
-                        video_data = data['data']
+                    if data["code"] == 0:
+                        video_data = data["data"]
                         return {
-                                'success': True,
-                                'title': video_data['title'],
-                                'cover': video_data['pic'],
-                                'bvid': bv_id,
-                                'author': video_data['owner']['name'],
-                                'duration': video_data['duration']
+                            "success": True,
+                            "title": video_data["title"],
+                            "cover": video_data["pic"],
+                            "bvid": bv_id,
+                            "author": video_data["owner"]["name"],
+                            "duration": video_data["duration"],
                         }
                     else:
                         raise_error("FILE.VIDEO_BILIBILI_API_ERROR")
@@ -713,5 +725,5 @@ def get_video_info(app, user_id: str, url: str) -> dict:
             else:
                 raise_error("FILE.VIDEO_UNSUPPORTED_VIDEO_SITE")
 
-        except Exception as e:
+        except Exception:
             raise_error("FILE.VIDEO_GET_INFO_ERROR")
