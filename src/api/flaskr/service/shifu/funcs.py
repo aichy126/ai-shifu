@@ -459,7 +459,12 @@ def upload_url(app, user_id: str, url: str) -> str:
         FILE_BASE_URL = get_config("ALIBABA_CLOUD_OSS_COURSES_URL", None)
         BUCKET_NAME = get_config("ALIBABA_CLOUD_OSS_COURSES_BUCKET", None)
 
-        if not ALI_API_ID or not ALI_API_SECRET or ALI_API_ID == "" or ALI_API_SECRET == "":
+        if (
+            not ALI_API_ID
+            or not ALI_API_SECRET
+            or ALI_API_ID == ""
+            or ALI_API_SECRET == ""
+        ):
             raise_error_with_args(
                 "API.ALIBABA_CLOUD_NOT_CONFIGURED",
                 config_var="ALIBABA_CLOUD_OSS_COURSES_ACCESS_KEY_ID,ALIBABA_CLOUD_OSS_COURSES_ACCESS_KEY_SECRET",
@@ -468,28 +473,28 @@ def upload_url(app, user_id: str, url: str) -> str:
         # 从URL下载图片
         try:
             headers = {
-                'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-                'Accept': 'image/webp,image/apng,image/*,*/*;q=0.8',
-                'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
-                'Referer': url,
-                'Connection': 'keep-alive',
+                "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+                "Accept": "image/webp,image/apng,image/*,*/*;q=0.8",
+                "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
+                "Referer": url,
+                "Connection": "keep-alive",
             }
 
             response = requests.get(url, headers=headers, timeout=10)
             response.raise_for_status()
 
             # 检查Content-Type是否为图片
-            content_type = response.headers.get('Content-Type', '')
-            if not content_type.startswith('image/'):
+            content_type = response.headers.get("Content-Type", "")
+            if not content_type.startswith("image/"):
                 app.logger.error(f"Invalid content type: {content_type}")
                 raise_error("FILE.FILE_TYPE_NOT_SUPPORT")
 
             file_content = BytesIO(response.content)
 
             # 获取文件扩展名
-            filename = url.split('/')[-1]
-            if '?' in filename:  # 移除URL参数
-                filename = filename.split('?')[0]
+            filename = url.split("/")[-1]
+            if "?" in filename:  # 移除URL参数
+                filename = filename.split("?")[0]
             content_type = get_content_type(filename)
 
             # 生成唯一文件ID
