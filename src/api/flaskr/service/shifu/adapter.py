@@ -159,7 +159,8 @@ def update_block_model(
             ):
                 block_model.script_temprature = block_dto.block_content.temprature
         else:
-            raise_error("SHIFU.INVALID_BLOCK_CONTENT_TYPE")
+            # raise_error("SHIFU.INVALID_BLOCK_CONTENT_TYPE")
+            return None
     if block_dto.block_ui:
         if isinstance(block_dto.block_ui, LoginDto):
             check_button_dto(block_dto.block_ui)
@@ -208,16 +209,21 @@ def update_block_model(
 
         elif isinstance(block_dto.block_ui, OptionDto):
             if not block_dto.block_ui.option_key:
-                raise_error("SHIFU.OPTION_KEY_REQUIRED")
+                # raise_error("SHIFU.OPTION_KEY_REQUIRED")
+                return None
             if not block_dto.block_ui.option_name:
-                raise_error("SHIFU.OPTION_NAME_REQUIRED")
+                # raise_error("SHIFU.OPTION_NAME_REQUIRED")
+                return None
             if not block_dto.block_ui.profile_key:
-                raise_error("SHIFU.PROFILE_KEY_REQUIRED")
+                # raise_error("SHIFU.PROFILE_KEY_REQUIRED")
+                return None
             for btn in block_dto.block_ui.buttons:
                 if not btn.button_name:
-                    raise_error("SHIFU.BUTTON_NAME_REQUIRED")
+                    # raise_error("SHIFU.BUTTON_NAME_REQUIRED")
+                    return None
                 if not btn.button_key:
-                    raise_error("SHIFU.BUTTON_KEY_REQUIRED")
+                    # raise_error("SHIFU.BUTTON_KEY_REQUIRED")
+                    return None
             block_model.script_ui_type = UI_TYPE_SELECTION
             block_model.script_ui_content = block_dto.block_ui.option_key
             block_model.script_ui_content = block_dto.block_ui.option_name
@@ -244,13 +250,17 @@ def update_block_model(
             )
         elif isinstance(block_dto.block_ui, TextInputDto):
             if not block_dto.block_ui.prompt:
-                raise_error("SHIFU.PROMPT_REQUIRED")
+                # raise_error("SHIFU.PROMPT_REQUIRED")
+                return None
             if not block_dto.block_ui.input_key:
-                raise_error("SHIFU.INPUT_KEY_REQUIRED")
+                # raise_error("SHIFU.INPUT_KEY_REQUIRED")
+                return None
             if not block_dto.block_ui.input_name:
-                raise_error("SHIFU.INPUT_NAME_REQUIRED")
+                # raise_error("SHIFU.INPUT_NAME_REQUIRED")
+                return None
             if not block_dto.block_ui.input_placeholder:
-                raise_error("SHIFU.INPUT_PLACEHOLDER_REQUIRED")
+                # raise_error("SHIFU.INPUT_PLACEHOLDER_REQUIRED")
+                return None
             from flask import current_app as app
 
             app.logger.info(f"block_dto.block_ui.prompt: {block_dto.block_ui}")
