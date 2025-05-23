@@ -20,6 +20,8 @@ from .utils import get_existing_outlines_for_publish, get_existing_blocks_for_pu
 import oss2
 import uuid
 import json
+import requests
+from io import BytesIO
 
 
 def get_raw_shifu_list(
@@ -445,6 +447,88 @@ def upload_file(app, user_id: str, resource_id: str, file) -> str:
         db.session.commit()
 
         return url
+
+
+def upload_url(app, user_id: str, url: str) -> str:
+    with app.app_context():
+        endpoint = get_config("ALIBABA_CLOUD_OSS_COURSES_ENDPOINT")
+        ALI_API_ID = get_config("ALIBABA_CLOUD_OSS_COURSES_ACCESS_KEY_ID", None)
+        ALI_API_SECRET = get_config("ALIBABA_CLOUD_OSS_COURSES_ACCESS_KEY_SECRET", None)
+        FILE_BASE_URL = get_config("ALIBABA_CLOUD_OSS_COURSES_URL", None)
+        BUCKET_NAME = get_config("ALIBABA_CLOUD_OSS_COURSES_BUCKET", None)
+
+        if not ALI_API_ID or not ALI_API_SECRET or ALI_API_ID == "" or ALI_API_SECRET == "":
+            raise_error_with_args(
+                "API.ALIBABA_CLOUD_NOT_CONFIGURED",
+                config_var="ALIBABA_CLOUD_OSS_COURSES_ACCESS_KEY_ID,ALIBABA_CLOUD_OSS_COURSES_ACCESS_KEY_SECRET",
+            )
+
+        # 从URL下载图片
+        try:
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+                'Accept': 'image/webp,image/apng,image/*,*/*;q=0.8',
+                'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
+                'Referer': url,
+                'Connection': 'keep-alive',
+            }
+
+            response = requests.get(url, headers=headers, timeout=10)
+            response.raise_for_status()
+
+            # 检查Content-Type是否为图片
+            content_type = response.headers.get('Content-Type', '')
+            if not content_type.startswith('image/'):
+                app.logger.error(f"Invalid content type: {content_type}")
+                raise_error("FILE.FILE_TYPE_NOT_SUPPORT")
+
+            file_content = BytesIO(response.content)
+
+            # 获取文件扩展名
+            filename = url.split('/')[-1]
+            if '?' in filename:  # 移除URL参数
+                filename = filename.split('?')[0]
+            content_type = get_content_type(filename)
+
+            # 生成唯一文件ID
+            file_id = str(uuid.uuid4()).replace("-", "")
+
+            # 上传到OSS
+            auth = oss2.Auth(ALI_API_ID, ALI_API_SECRET)
+            bucket = oss2.Bucket(auth, endpoint, BUCKET_NAME)
+            bucket.put_object(
+                file_id,
+                file_content,
+                headers={"Content-Type": content_type},
+            )
+
+            # 生成访问URL
+            url = FILE_BASE_URL + "/" + file_id
+
+            # 保存资源记录
+            resource = Resource(
+                resource_id=file_id,
+                name=filename,
+                type=0,
+                oss_bucket=BUCKET_NAME,
+                oss_name=BUCKET_NAME,
+                url=url,
+                status=0,
+                is_deleted=0,
+                created_by=user_id,
+                updated_by=user_id,
+            )
+            db.session.add(resource)
+            db.session.commit()
+
+            return url
+
+        except requests.RequestException as e:
+            app.logger.error(f"Failed to download image from URL: {e}")
+            raise_error("FILE.FILE_DOWNLOAD_FAILED")
+        except Exception as e:
+            app.logger.error(f"Failed to upload image to OSS: {e}")
+            raise_error("FILE.FILE_UPLOAD_FAILED")
 
 
 def get_shifu_detail(app, user_id: str, shifu_id: str):

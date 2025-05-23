@@ -9,6 +9,7 @@ from .funcs import (
     save_shifu_detail,
     get_shifu_detail,
     upload_file,
+    upload_url,
     shifu_permission_verification,
 )
 from .outline_funcs import (
@@ -1195,4 +1196,16 @@ def register_shifu_routes(app: Flask, path_prefix="/api/shifu"):
             raise_param_error("file")
         return make_common_response(upload_file(app, user_id, resource_id, file))
 
+    @app.route(path_prefix + "/url-upfile", methods=["POST"])
+    def upload_url_api():
+        """
+        upload url to oss
+        """
+        user_id = request.user.user_id
+        url = request.get_json().get("url")
+        return make_common_response(upload_url(app, user_id, url))
+
     return app
+
+
+
