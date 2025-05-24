@@ -106,13 +106,8 @@ def convert_dict_to_outline_edit_dto(outline_dict: dict) -> OutlineEditDto:
 
 
 def check_button_dto(button_dto: ButtonDto):
-    #The button title is allowed to be empty
+    # The button title is allowed to be empty
     pass
-
-    # if not button_dto.button_name:
-    #     return "SHIFU.BUTTON_NAME_REQUIRED"
-    # if not button_dto.button_key:
-    #     return "SHIFU.BUTTON_KEY_REQUIRED"
 
 
 # update block model

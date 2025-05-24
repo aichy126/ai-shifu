@@ -202,7 +202,9 @@ def save_block_list_internal(
                     update_block_result = update_block_model(block_model, block_dto)
                     profile = None
                     if update_block_result.error_message:
-                        error_messages[block_model.script_id] = update_block_result.error_message
+                        error_messages[block_model.script_id] = (
+                            update_block_result.error_message
+                        )
                         continue
                     if update_block_result.data:
                         profile = update_block_result.data
@@ -234,7 +236,9 @@ def save_block_list_internal(
                     update_block_result = update_block_model(new_block, block_dto)
                     profile = None
                     if update_block_result.error_message:
-                        error_messages[new_block.script_id] = update_block_result.error_message
+                        error_messages[new_block.script_id] = (
+                            update_block_result.error_message
+                        )
                         continue
                     else:
                         profile = update_block_result.data
@@ -283,7 +287,7 @@ def save_block_list_internal(
                 generate_block_dto(block_model, profile_items)
                 for block_model in block_models
             ],
-            error_messages
+            error_messages,
         )
 
 
