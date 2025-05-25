@@ -17,7 +17,7 @@ import { useEffect, useState } from 'react'
 import { cn } from '@/lib/utils'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../ui/alert-dialog'
 import { useTranslation } from 'react-i18next';
-
+import Empty from './empty'
 const EditBlockMap = {
     button: Button,
     option: Option,
@@ -27,6 +27,7 @@ const EditBlockMap = {
     textinput: TextInput,
     login: (props) => <Button {...props} mode="login" />,
     payment: (props) => <Button {...props} mode="payment" />,
+    empty: Empty,
 }
 
 const ViewBlockMap = {
@@ -191,18 +192,12 @@ export default RenderBlockUI
 export const useUITypes = () => {
     const { t } = useTranslation();
     return [
-        {
-            type: 'button',
-            name: t('render-ui.button'),
-            properties: {
-            "button_name": t('render-ui.button-button-name'),
+    {
+        type: 'button',
+        name: t('render-ui.button'),
+        properties: {
+            "button_name": "",
             "button_key": t('render-ui.button-button-key')
-        },
-        validate: (properties): string => {
-            if (!properties.button_name) {
-                return t('render-ui.button-name-empty')
-            }
-            return ""
         }
     },
     {
@@ -300,6 +295,11 @@ export const useUITypes = () => {
         }
 
     },
+    {
+        type: 'empty',
+        name: t('render-ui.empty'),
+        properties: {},
+    },
     /**commit temp  for current version
     {
         type: 'phone',
@@ -343,12 +343,6 @@ export const useUITypes = () => {
         properties: {
             "button_name": "",
             "button_key": ""
-        },
-        validate: (properties): string => {
-            if (!properties.button_name) {
-                return t('render-ui.login-button-name-empty')
-            }
-            return ""
         }
     },
     {
@@ -357,12 +351,6 @@ export const useUITypes = () => {
         properties: {
             "button_name": "",
             "button_key": ""
-        },
-        validate: (properties): string => {
-            if (!properties.button_name) {
-                return t('render-ui.payment-button-name-empty')
-            }
-            return ""
         }
     },
     ]

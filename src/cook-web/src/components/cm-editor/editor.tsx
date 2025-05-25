@@ -213,7 +213,6 @@ const Editor: React.FC<EditorProps> = ({
               placeholder={t('cm-editor.input-slash-to-insert-content')}
               value={content}
               theme='light'
-              height='10em'
               onChange={(value: string) => {
                 onChange?.(value, isEdit || false)
               }}
@@ -240,7 +239,7 @@ const Editor: React.FC<EditorProps> = ({
             </CustomDialog>
           </>
         ) : (
-          <div className='w-full p-2 rounded cursor-pointer font-mono break-words'>
+          <div className='w-full p-2 rounded cursor-pointer font-mono break-words whitespace-pre-wrap'>
             {content}
           </div>
         )}
