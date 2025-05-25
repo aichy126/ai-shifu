@@ -51,6 +51,9 @@ def get_lesson_tree_to_study_inner(
         app.logger.info("user_id:" + user_id)
         attend_status_values = get_attend_status_values()
         if course_id:
+            ai_course_status = [STATUS_PUBLISH]
+            if preview_mode:
+                ai_course_status.append(STATUS_DRAFT)
             course_info = (
                 AICourse.query.filter(
                     AICourse.course_id == course_id,
