@@ -1,5 +1,5 @@
-import '@chatui/core/dist/index.css';
-import Chat, { useMessages } from '@chatui/core';
+import '@ai-shifu/chatui/dist/index.css';
+import Chat, { useMessages } from '@ai-shifu/chatui';
 import { LikeOutlined, DislikeOutlined, LikeFilled, DislikeFilled } from '@ant-design/icons';
 import {
   useEffect,
