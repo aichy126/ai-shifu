@@ -476,43 +476,50 @@ def _warm_up_cdn(app, url: str, ALI_API_ID: str, ALI_API_SECRET: str, endpoint: 
         return False
 
 
-def upload_file(app, user_id: str, resource_id: str, file) -> str:
+def _upload_to_oss(app, file_content, file_id: str, content_type: str) -> str:
     endpoint = get_config("ALIBABA_CLOUD_OSS_COURSES_ENDPOINT")
     ALI_API_ID = get_config("ALIBABA_CLOUD_OSS_COURSES_ACCESS_KEY_ID", None)
     ALI_API_SECRET = get_config("ALIBABA_CLOUD_OSS_COURSES_ACCESS_KEY_SECRET", None)
     FILE_BASE_URL = get_config("ALIBABA_CLOUD_OSS_COURSES_URL", None)
     BUCKET_NAME = get_config("ALIBABA_CLOUD_OSS_COURSES_BUCKET", None)
+
     if not ALI_API_ID or not ALI_API_SECRET or ALI_API_ID == "" or ALI_API_SECRET == "":
         app.logger.warning(
             "ALIBABA_CLOUD_OSS_COURSES_ACCESS_KEY_ID or ALIBABA_CLOUD_OSS_COURSES_ACCESS_KEY_SECRET not configured"
         )
-    else:
-        auth = oss2.Auth(ALI_API_ID, ALI_API_SECRET)
-        bucket = oss2.Bucket(auth, endpoint, BUCKET_NAME)
+        raise_error_with_args(
+            "API.ALIBABA_CLOUD_NOT_CONFIGURED",
+            config_var="ALIBABA_CLOUD_OSS_COURSES_ACCESS_KEY_ID,ALIBABA_CLOUD_OSS_COURSES_ACCESS_KEY_SECRET",
+        )
+
+    auth = oss2.Auth(ALI_API_ID, ALI_API_SECRET)
+    bucket = oss2.Bucket(auth, endpoint, BUCKET_NAME)
+
+    bucket.put_object(
+        file_id,
+        file_content,
+        headers={"Content-Type": content_type},
+    )
+
+    url = FILE_BASE_URL + "/" + file_id
+
+    _warm_up_cdn(app, url, ALI_API_ID, ALI_API_SECRET, endpoint)
+
+    return url, BUCKET_NAME
+
+
+def upload_file(app, user_id: str, resource_id: str, file) -> str:
     with app.app_context():
-        if (
-            not ALI_API_ID
-            or not ALI_API_SECRET
-            or ALI_API_ID == ""
-            or ALI_API_SECRET == ""
-        ):
-            raise_error_with_args(
-                "API.ALIBABA_CLOUD_NOT_CONFIGURED",
-                config_var="ALIBABA_CLOUD_OSS_COURSES_ACCESS_KEY_ID,ALIBABA_CLOUD_OSS_COURSES_ACCESS_KEY_SECRET",
-            )
         isUpdate = False
         if resource_id == "":
             file_id = str(uuid.uuid4()).replace("-", "")
         else:
             isUpdate = True
             file_id = resource_id
-        bucket.put_object(
-            file_id,
-            file,
-            headers={"Content-Type": get_content_type(file.filename)},
-        )
 
-        url = FILE_BASE_URL + "/" + file_id
+        content_type = get_content_type(file.filename)
+        url, BUCKET_NAME = _upload_to_oss(app, file, file_id, content_type)
+
         if isUpdate:
             resource = Resource.query.filter_by(resource_id=file_id).first()
             resource.name = file.filename
@@ -534,31 +541,20 @@ def upload_file(app, user_id: str, resource_id: str, file) -> str:
             db.session.add(resource)
             db.session.commit()
 
-        _warm_up_cdn(app, url, ALI_API_ID, ALI_API_SECRET, endpoint)
-
         return url
 
 
 def upload_url(app, user_id: str, url: str) -> str:
     with app.app_context():
-        endpoint = get_config("ALIBABA_CLOUD_OSS_COURSES_ENDPOINT")
-        ALI_API_ID = get_config("ALIBABA_CLOUD_OSS_COURSES_ACCESS_KEY_ID", None)
-        ALI_API_SECRET = get_config("ALIBABA_CLOUD_OSS_COURSES_ACCESS_KEY_SECRET", None)
-        FILE_BASE_URL = get_config("ALIBABA_CLOUD_OSS_COURSES_URL", None)
-        BUCKET_NAME = get_config("ALIBABA_CLOUD_OSS_COURSES_BUCKET", None)
-
-        if (
-            not ALI_API_ID
-            or not ALI_API_SECRET
-            or ALI_API_ID == ""
-            or ALI_API_SECRET == ""
-        ):
-            raise_error_with_args(
-                "API.ALIBABA_CLOUD_NOT_CONFIGURED",
-                config_var="ALIBABA_CLOUD_OSS_COURSES_ACCESS_KEY_ID,ALIBABA_CLOUD_OSS_COURSES_ACCESS_KEY_SECRET",
-            )
-
         try:
+            # Validate URL format
+            if not url or not url.strip():
+                raise_error("FILE.VIDEO_URL_REQUIRED")
+
+            # Ensure URL is properly formatted
+            if not url.startswith(('http://', 'https://')):
+                raise_error("FILE.VIDEO_INVALID_URL_FORMAT")
+
             parsed_url = urlparse(url)
             clean_url = f"{parsed_url.scheme}://{parsed_url.netloc}{parsed_url.path}"
 
@@ -592,17 +588,7 @@ def upload_url(app, user_id: str, url: str) -> str:
             content_type = get_content_type(filename)
             file_id = str(uuid.uuid4()).replace("-", "")
 
-            auth = oss2.Auth(ALI_API_ID, ALI_API_SECRET)
-            bucket = oss2.Bucket(auth, endpoint, BUCKET_NAME)
-
-            app.logger.info(f"Uploading image to OSS with file_id: {file_id}")
-            bucket.put_object(
-                file_id,
-                file_content,
-                headers={"Content-Type": content_type},
-            )
-
-            url = FILE_BASE_URL + "/" + file_id
+            url, BUCKET_NAME = _upload_to_oss(app, file_content, file_id, content_type)
 
             resource = Resource(
                 resource_id=file_id,
@@ -619,14 +605,10 @@ def upload_url(app, user_id: str, url: str) -> str:
             db.session.add(resource)
             db.session.commit()
 
-            _warm_up_cdn(app, url, ALI_API_ID, ALI_API_SECRET, endpoint)
-
             return url
 
         except requests.RequestException as e:
-            app.logger.error(
-                f"Failed to download image from URL: {url}, error: {str(e)}"
-            )
+            app.logger.error(f"Failed to download image from URL: {url}, error: {str(e)}")
             raise_error("FILE.FILE_DOWNLOAD_FAILED")
         except Exception as e:
             app.logger.error(f"Failed to upload image to OSS: {url}, error: {str(e)}")
@@ -815,5 +797,12 @@ def get_video_info(app, user_id: str, url: str) -> dict:
             else:
                 raise_error("FILE.VIDEO_UNSUPPORTED_VIDEO_SITE")
 
-        except Exception:
+        except requests.RequestException as e:
+            app.logger.error(f"Failed to fetch video info from {url}: {str(e)}")
+            raise_error("FILE.VIDEO_NETWORK_ERROR")
+        except KeyError as e:
+            app.logger.error(f"Missing expected field in API response: {str(e)}")
+            raise_error("FILE.VIDEO_PARSE_ERROR")
+        except Exception as e:
+            app.logger.error(f"Unexpected error getting video info: {str(e)}")
             raise_error("FILE.VIDEO_GET_INFO_ERROR")
