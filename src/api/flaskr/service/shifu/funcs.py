@@ -552,7 +552,7 @@ def upload_url(app, user_id: str, url: str) -> str:
                 raise_error("FILE.VIDEO_URL_REQUIRED")
 
             # Ensure URL is properly formatted
-            if not url.startswith(('http://', 'https://')):
+            if not url.startswith(("http://", "https://")):
                 raise_error("FILE.VIDEO_INVALID_URL_FORMAT")
 
             parsed_url = urlparse(url)
@@ -608,7 +608,9 @@ def upload_url(app, user_id: str, url: str) -> str:
             return url
 
         except requests.RequestException as e:
-            app.logger.error(f"Failed to download image from URL: {url}, error: {str(e)}")
+            app.logger.error(
+                f"Failed to download image from URL: {url}, error: {str(e)}"
+            )
             raise_error("FILE.FILE_DOWNLOAD_FAILED")
         except Exception as e:
             app.logger.error(f"Failed to upload image to OSS: {url}, error: {str(e)}")
