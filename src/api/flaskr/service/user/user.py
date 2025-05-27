@@ -203,7 +203,10 @@ def upload_user_avatar(app: Flask, user_id: str, avatar) -> str:
             db.session.commit()
 
             from ..shifu.funcs import _warm_up_cdn
+
             if not _warm_up_cdn(app, url, ALI_API_ID, ALI_API_SECRET, endpoint):
-                app.logger.warning("The user avatar URL is inaccessible, but the URL continues to be returned")
+                app.logger.warning(
+                    "The user avatar URL is inaccessible, but the URL continues to be returned"
+                )
 
             return url

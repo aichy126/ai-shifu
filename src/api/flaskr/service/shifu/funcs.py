@@ -394,40 +394,44 @@ def get_content_type(filename):
 def _warm_up_cdn(app, url: str, ALI_API_ID: str, ALI_API_SECRET: str, endpoint: str):
     try:
         from aliyunsdkcore.client import AcsClient
-        from aliyunsdkcdn.request.v20180510.PushObjectCacheRequest import PushObjectCacheRequest
-        from aliyunsdkcdn.request.v20180510.DescribeRefreshTasksRequest import DescribeRefreshTasksRequest
+        from aliyunsdkcdn.request.v20180510.PushObjectCacheRequest import (
+            PushObjectCacheRequest,
+        )
+        from aliyunsdkcdn.request.v20180510.DescribeRefreshTasksRequest import (
+            DescribeRefreshTasksRequest,
+        )
         import json
         import oss2
         import requests
 
-        file_id = url.split('/')[-1]
+        file_id = url.split("/")[-1]
 
-        region_id = endpoint.split('.')[0].replace('oss-', '')
+        region_id = endpoint.split(".")[0].replace("oss-", "")
         client = AcsClient(ALI_API_ID, ALI_API_SECRET, region_id=region_id)
         request = PushObjectCacheRequest()
-        request.set_accept_format('json')
+        request.set_accept_format("json")
         object_path = url.strip() + "\n"
         request.set_ObjectPath(object_path)
 
         response = client.do_action_with_exception(request)
         response_data = json.loads(response)
-        push_task_id = response_data.get('PushTaskId')
+        push_task_id = response_data.get("PushTaskId")
 
         max_retries = 10
         retry_count = 0
         while retry_count < max_retries:
             status_request = DescribeRefreshTasksRequest()
-            status_request.set_accept_format('json')
+            status_request.set_accept_format("json")
             status_request.TaskId = push_task_id
 
             status_response = client.do_action_with_exception(status_request)
             status_data = json.loads(status_response)
 
-            tasks = status_data.get('Tasks', {}).get('CDNTask', [])
+            tasks = status_data.get("Tasks", {}).get("CDNTask", [])
             if tasks:
                 task = tasks[0]
-                status = task.get('Status')
-                if status == 'Complete':
+                status = task.get("Status")
+                if status == "Complete":
                     max_url_retries = 10
                     url_retry_count = 0
                     while url_retry_count < max_url_retries:
@@ -436,18 +440,26 @@ def _warm_up_cdn(app, url: str, ALI_API_ID: str, ALI_API_SECRET: str, endpoint: 
                             if response.status_code == 200:
                                 return True
                             else:
-                                app.logger.warning(f"The image URL is inaccessible. Status code: {response.status_code}")
+                                app.logger.warning(
+                                    f"The image URL is inaccessible. Status code: {response.status_code}"
+                                )
                         except Exception as e:
-                            app.logger.warning(f"The image URL access check failed: {str(e)}")
+                            app.logger.warning(
+                                f"The image URL access check failed: {str(e)}"
+                            )
 
                         url_retry_count += 1
                         if url_retry_count < max_url_retries:
                             time.sleep(2)
 
-                    app.logger.warning("The image URL still cannot be accessed after multiple retries")
+                    app.logger.warning(
+                        "The image URL still cannot be accessed after multiple retries"
+                    )
                     return False
-                elif status == 'Failed':
-                    app.logger.warning(f"The CDN preheating task failed: {task.get('Description')}")
+                elif status == "Failed":
+                    app.logger.warning(
+                        f"The CDN preheating task failed: {task.get('Description')}"
+                    )
                     return False
 
             retry_count += 1
@@ -459,7 +471,9 @@ def _warm_up_cdn(app, url: str, ALI_API_ID: str, ALI_API_SECRET: str, endpoint: 
     except Exception as e:
         app.logger.warning(f"CDN预热失败: {str(e)}")
         app.logger.warning(f"预热URL: {url}")
-        app.logger.warning(f"ObjectPath: {object_path if 'object_path' in locals() else 'Not set'}")
+        app.logger.warning(
+            f"ObjectPath: {object_path if 'object_path' in locals() else 'Not set'}"
+        )
         return False
 
 
@@ -534,7 +548,12 @@ def upload_url(app, user_id: str, url: str) -> str:
         FILE_BASE_URL = get_config("ALIBABA_CLOUD_OSS_COURSES_URL", None)
         BUCKET_NAME = get_config("ALIBABA_CLOUD_OSS_COURSES_BUCKET", None)
 
-        if not ALI_API_ID or not ALI_API_SECRET or ALI_API_ID == "" or ALI_API_SECRET == "":
+        if (
+            not ALI_API_ID
+            or not ALI_API_SECRET
+            or ALI_API_ID == ""
+            or ALI_API_SECRET == ""
+        ):
             raise_error_with_args(
                 "API.ALIBABA_CLOUD_NOT_CONFIGURED",
                 config_var="ALIBABA_CLOUD_OSS_COURSES_ACCESS_KEY_ID,ALIBABA_CLOUD_OSS_COURSES_ACCESS_KEY_SECRET",
@@ -606,7 +625,9 @@ def upload_url(app, user_id: str, url: str) -> str:
             return url
 
         except requests.RequestException as e:
-            app.logger.error(f"Failed to download image from URL: {url}, error: {str(e)}")
+            app.logger.error(
+                f"Failed to download image from URL: {url}, error: {str(e)}"
+            )
             raise_error("FILE.FILE_DOWNLOAD_FAILED")
         except Exception as e:
             app.logger.error(f"Failed to upload image to OSS: {url}, error: {str(e)}")
