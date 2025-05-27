@@ -401,7 +401,6 @@ def _warm_up_cdn(app, url: str, ALI_API_ID: str, ALI_API_SECRET: str, endpoint: 
             DescribeRefreshTasksRequest,
         )
         import json
-        import oss2
         import requests
 
         file_id = url.split("/")[-1]
