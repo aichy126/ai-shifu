@@ -51,9 +51,6 @@ def get_lesson_tree_to_study_inner(
         app.logger.info("user_id:" + user_id)
         attend_status_values = get_attend_status_values()
         if course_id:
-            ai_course_status = [STATUS_PUBLISH]
-            if preview_mode:
-                ai_course_status.append(STATUS_DRAFT)
             course_info = (
                 AICourse.query.filter(
                     AICourse.course_id == course_id,
@@ -76,29 +73,47 @@ def get_lesson_tree_to_study_inner(
         if buy_record:
             paid = buy_record.status == BUY_STATUS_SUCCESS
 
-        lessons = (
-            AILesson.query.filter(
+        subquery = (
+            db.session.query(db.func.max(AILesson.id))
+            .filter(
                 AILesson.course_id == course_id,
                 AILesson.lesson_type != LESSON_TYPE_BRANCH_HIDDEN,
+            )
+            .group_by(AILesson.lesson_id)
+            .order_by(AILesson.id.desc())
+        )
+
+        lessons = (
+            AILesson.query.filter(
+                AILesson.id.in_(subquery),
                 AILesson.status.in_(ai_course_status),
             )
             .order_by(AILesson.id.desc())
             .all()
         )
 
+        if preview_mode:
+            lessons = [
+                lesson for lesson in lessons
+                if lesson.status == STATUS_DRAFT or (
+                    lesson.status == STATUS_PUBLISH and
+                    not any(l.lesson_id == lesson.lesson_id and l.status == STATUS_DRAFT for l in lessons)
+                )
+            ]
+
         online_lessons = []
         if preview_mode:
-            online_lessons = [i for i in lessons if i.status in [1, 2]]
+            online_lessons = [i for i in lessons if i.status in [STATUS_PUBLISH, STATUS_DRAFT]]
         else:
-            online_lessons = [i for i in lessons if i.status == 1]
+            online_lessons = [i for i in lessons if i.status == STATUS_PUBLISH]
         online_lessons = sorted(
             online_lessons, key=lambda x: (len(x.lesson_no), x.lesson_no)
         )
         old_lessons = []
         if preview_mode:
-            old_lessons = [i for i in lessons if i.status not in [1, 2]]
+            old_lessons = [i for i in lessons if i.status not in [STATUS_PUBLISH, STATUS_DRAFT]]
         else:
-            old_lessons = [i for i in lessons if i.status != 1]
+            old_lessons = [i for i in lessons if i.status != STATUS_PUBLISH]
         old_lessons = sorted(old_lessons, key=lambda x: x.id, reverse=True)
         lesson_map = {i.lesson_id: i for i in online_lessons}
 
@@ -192,6 +207,7 @@ def get_lesson_tree_to_study_inner(
             )
 
         for lesson_index, lesson in enumerate(lessonInfos):
+            print(lesson.lesson_name,lesson.lesson_no)
             attend_info = attend_map.get(lesson.lesson_id, None)
             if attend_info is None:
                 lesson_info = lesson_map.get(lesson.lesson_id, None)
