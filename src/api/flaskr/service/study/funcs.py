@@ -48,6 +48,7 @@ def get_lesson_tree_to_study_inner(
         ai_course_status = [STATUS_PUBLISH]
         if preview_mode:
             ai_course_status.append(STATUS_DRAFT)
+
         app.logger.info("user_id:" + user_id)
         attend_status_values = get_attend_status_values()
         if course_id:
@@ -78,9 +79,9 @@ def get_lesson_tree_to_study_inner(
             .filter(
                 AILesson.course_id == course_id,
                 AILesson.lesson_type != LESSON_TYPE_BRANCH_HIDDEN,
+                AILesson.status.in_(ai_course_status),
             )
             .group_by(AILesson.lesson_id)
-            .order_by(AILesson.id.desc())
         )
 
         lessons = (
@@ -88,7 +89,6 @@ def get_lesson_tree_to_study_inner(
                 AILesson.id.in_(subquery),
                 AILesson.status.in_(ai_course_status),
             )
-            .order_by(AILesson.id.desc())
             .all()
         )
 
