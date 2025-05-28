@@ -68,7 +68,6 @@ def run_script_inner(
             if preview_mode:
                 ai_course_status.append(STATUS_DRAFT)
 
-
             attend_status_values = get_attend_status_values()
             user_info = User.query.filter(User.user_id == user_id).first()
             if not lesson_id:
@@ -82,13 +81,10 @@ def run_script_inner(
                         )
                         .group_by(AICourse.course_id)
                     )
-                    course_info = (
-                        AICourse.query.filter(
-                            AICourse.id.in_(subquery),
-                            AICourse.status.in_(ai_course_status),
-                        )
-                        .first()
-                    )
+                    course_info = AICourse.query.filter(
+                        AICourse.id.in_(subquery),
+                        AICourse.status.in_(ai_course_status),
+                    ).first()
                 else:
                     course_info = (
                         AICourse.query.filter(
@@ -116,13 +112,10 @@ def run_script_inner(
                     )
                     .group_by(AILesson.lesson_id)
                 )
-                lesson_info = (
-                    AILesson.query.filter(
-                        AILesson.id.in_(subquery),
-                        AILesson.status.in_(ai_course_status),
-                    )
-                    .first()
-                )
+                lesson_info = AILesson.query.filter(
+                    AILesson.id.in_(subquery),
+                    AILesson.status.in_(ai_course_status),
+                ).first()
                 if not lesson_info:
                     raise_error("LESSON.LESSON_NOT_FOUND_IN_COURSE")
             else:
@@ -134,13 +127,10 @@ def run_script_inner(
                     )
                     .group_by(AILesson.lesson_id)
                 )
-                lesson_info = (
-                    AILesson.query.filter(
-                        AILesson.id.in_(subquery),
-                        AILesson.status.in_(ai_course_status),
-                    )
-                    .first()
-                )
+                lesson_info = AILesson.query.filter(
+                    AILesson.id.in_(subquery),
+                    AILesson.status.in_(ai_course_status),
+                ).first()
                 if not lesson_info:
                     raise_error("LESSON.LESSON_NOT_FOUND_IN_COURSE")
                 course_id = lesson_info.course_id
@@ -159,13 +149,10 @@ def run_script_inner(
                     )
                     .group_by(AICourse.course_id)
                 )
-                course_info = (
-                    AICourse.query.filter(
-                        AICourse.id.in_(subquery),
-                        AICourse.status.in_(ai_course_status),
-                    )
-                    .first()
-                )
+                course_info = AICourse.query.filter(
+                    AICourse.id.in_(subquery),
+                    AICourse.status.in_(ai_course_status),
+                ).first()
                 if not course_info:
                     raise_error("LESSON.COURSE_NOT_FOUND")
                 # return the teacher avator

@@ -88,10 +88,16 @@ def create_unit(
                 f"create unit, user_id: {user_id}, shifu_id: {shifu_id}, parent_id: {parent_id}, unit_index: {unit_index}"
             )
 
-            chapter_units = [unit for unit in existing_outlines if unit.parent_id == parent_id]
+            chapter_units = [
+                unit for unit in existing_outlines if unit.parent_id == parent_id
+            ]
             chapter_units.sort(key=lambda x: x.lesson_no)
 
-            max_lesson_index = max([unit.lesson_index for unit in chapter_units]) if chapter_units else 0
+            max_lesson_index = (
+                max([unit.lesson_index for unit in chapter_units])
+                if chapter_units
+                else 0
+            )
             new_lesson_index = max_lesson_index + 1
 
             if not chapter_units:
@@ -106,7 +112,9 @@ def create_unit(
 
                     for unit in chapter_units[unit_index:]:
                         current_unit_no = unit.lesson_no[-2:]
-                        unit.lesson_no = chapter.lesson_no + f"{int(current_unit_no) + 1:02d}"
+                        unit.lesson_no = (
+                            chapter.lesson_no + f"{int(current_unit_no) + 1:02d}"
+                        )
                         db.session.add(unit)
 
             unit_id = generate_id(app)

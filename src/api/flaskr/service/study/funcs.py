@@ -84,13 +84,10 @@ def get_lesson_tree_to_study_inner(
             .group_by(AILesson.lesson_id)
         )
 
-        lessons = (
-            AILesson.query.filter(
-                AILesson.id.in_(subquery),
-                AILesson.status.in_(ai_course_status),
-            )
-            .all()
-        )
+        lessons = AILesson.query.filter(
+            AILesson.id.in_(subquery),
+            AILesson.status.in_(ai_course_status),
+        ).all()
 
         if preview_mode:
             lessons = [
