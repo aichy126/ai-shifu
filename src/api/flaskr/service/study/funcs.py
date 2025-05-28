@@ -94,16 +94,23 @@ def get_lesson_tree_to_study_inner(
 
         if preview_mode:
             lessons = [
-                lesson for lesson in lessons
-                if lesson.status == STATUS_DRAFT or (
-                    lesson.status == STATUS_PUBLISH and
-                    not any(l.lesson_id == lesson.lesson_id and l.status == STATUS_DRAFT for l in lessons)
+                lesson
+                for lesson in lessons
+                if lesson.status == STATUS_DRAFT
+                or (
+                    lesson.status == STATUS_PUBLISH
+                    and not any(
+                        l.lesson_id == lesson.lesson_id and l.status == STATUS_DRAFT
+                        for l in lessons
+                    )
                 )
             ]
 
         online_lessons = []
         if preview_mode:
-            online_lessons = [i for i in lessons if i.status in [STATUS_PUBLISH, STATUS_DRAFT]]
+            online_lessons = [
+                i for i in lessons if i.status in [STATUS_PUBLISH, STATUS_DRAFT]
+            ]
         else:
             online_lessons = [i for i in lessons if i.status == STATUS_PUBLISH]
         online_lessons = sorted(
@@ -111,7 +118,9 @@ def get_lesson_tree_to_study_inner(
         )
         old_lessons = []
         if preview_mode:
-            old_lessons = [i for i in lessons if i.status not in [STATUS_PUBLISH, STATUS_DRAFT]]
+            old_lessons = [
+                i for i in lessons if i.status not in [STATUS_PUBLISH, STATUS_DRAFT]
+            ]
         else:
             old_lessons = [i for i in lessons if i.status != STATUS_PUBLISH]
         old_lessons = sorted(old_lessons, key=lambda x: x.id, reverse=True)
@@ -207,7 +216,7 @@ def get_lesson_tree_to_study_inner(
             )
 
         for lesson_index, lesson in enumerate(lessonInfos):
-            print(lesson.lesson_name,lesson.lesson_no)
+            print(lesson.lesson_name, lesson.lesson_no)
             attend_info = attend_map.get(lesson.lesson_id, None)
             if attend_info is None:
                 lesson_info = lesson_map.get(lesson.lesson_id, None)
