@@ -61,7 +61,14 @@ def run_script_inner(
     log_id: str = None,
     preview_mode: bool = False,
 ) -> Generator[str, None, None]:
+    """
+    Core function for running course scripts
+    """
     with app.app_context():
+        ai_course_status = [STATUS_PUBLISH]
+        if preview_mode:
+            ai_course_status = [STATUS_DRAFT, STATUS_PUBLISH]
+
         script_info = None
         try:
             attend_status_values = get_attend_status_values()
@@ -94,10 +101,18 @@ def run_script_inner(
                 if not lesson_info:
                     raise_error("LESSON.LESSON_NOT_FOUND_IN_COURSE")
             else:
+                subquery = (
+                    db.session.query(db.func.max(AILesson.id))
+                    .filter(
+                        AILesson.lesson_id == lesson_id,
+                    )
+                    .group_by(AILesson.lesson_id)
+                )
+
                 lesson_info = (
                     AILesson.query.filter(
-                        AILesson.lesson_id == lesson_id,
-                        AILesson.status == 1,
+                        AILesson.id.in_(subquery),
+                        AILesson.status.in_(ai_course_status),
                     )
                     .order_by(AILesson.id.desc())
                     .first()
@@ -115,7 +130,7 @@ def run_script_inner(
                 course_info = (
                     AICourse.query.filter(
                         AICourse.course_id == course_id,
-                        AICourse.status == 1,
+                        AICourse.status.in_(ai_course_status),
                     )
                     .order_by(AICourse.id.desc())
                     .first()
@@ -161,7 +176,7 @@ def run_script_inner(
                     lessons = AILesson.query.filter(
                         AILesson.lesson_no.like(parent_no + "__"),
                         AILesson.course_id == course_id,
-                        AILesson.status == 1,
+                        AILesson.status.in_(ai_course_status),
                     ).all()
                     app.logger.info(
                         "study lesson no :{}".format(
@@ -219,7 +234,7 @@ def run_script_inner(
             is_first_add = False
             # get the script info and the attend updates
             script_info, attend_updates, is_first_add = get_script(
-                app, attend_id=attend.attend_id, next=next
+                app, attend_id=attend.attend_id, next=next, preview_mode=preview_mode
             )
             auto_next_lesson_id = None
             next_chapter_no = None
@@ -274,7 +289,10 @@ def run_script_inner(
                             is_first_add = False
                             next = 0
                         script_info, attend_updates, _ = get_script(
-                            app, attend_id=attend.attend_id, next=next
+                            app,
+                            attend_id=attend.attend_id,
+                            next=next,
+                            preview_mode=preview_mode,
                         )
                         next = 1
                         if len(attend_updates) > 0:
@@ -328,7 +346,7 @@ def run_script_inner(
                         else:
                             break
                     if script_info and not check_script_is_last_script(
-                        app, script_info, lesson_info
+                        app, script_info, lesson_info, preview_mode
                     ):
                         # check if the script_info is last script,and ui is button or continue button
                         script_dtos = handle_ui(
@@ -343,7 +361,7 @@ def run_script_inner(
                         for script_dto in script_dtos:
                             yield make_script_dto_to_stream(script_dto)
                     else:
-                        res = update_lesson_status(app, attend.attend_id)
+                        res = update_lesson_status(app, attend.attend_id, preview_mode)
                         if res:
                             for attend_update in res:
                                 if isinstance(attend_update, AILessonAttendDTO):
@@ -399,7 +417,7 @@ def run_script_inner(
                     db.session.commit()
                     return
             else:
-                res = update_lesson_status(app, attend.attend_id)
+                res = update_lesson_status(app, attend.attend_id, preview_mode)
                 if res and len(res) > 0:
                     for attend_update in res:
                         if isinstance(attend_update, AILessonAttendDTO):

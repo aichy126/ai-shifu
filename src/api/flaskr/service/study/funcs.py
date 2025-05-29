@@ -53,7 +53,7 @@ def _get_lesson_tree_to_study_common(
     attend_infos: list,
     updated_attend: bool,
     attend_status_values: dict,
-    paid: bool
+    paid: bool,
 ) -> AICourseDTO:
     with app.app_context():
         is_first_chapter = False
@@ -262,8 +262,8 @@ def get_preview_mode_lesson_tree_to_study_inner(
     app: Flask, user_id: str, course_id: str = None
 ) -> AICourseDTO:
     with app.app_context():
-        preview_mode=True
-        ai_course_status = [STATUS_DRAFT,STATUS_PUBLISH]
+        preview_mode = True
+        ai_course_status = [STATUS_DRAFT, STATUS_PUBLISH]
         app.logger.info("user_id:" + user_id)
         attend_status_values = get_attend_status_values()
         if course_id:
@@ -311,14 +311,15 @@ def get_preview_mode_lesson_tree_to_study_inner(
             or (
                 lesson.status == STATUS_PUBLISH
                 and not any(
-                    l.lesson_id == lesson.lesson_id and l.status == STATUS_DRAFT
-                    for l in lessons
+                    lesson_item.lesson_id == lesson.lesson_id
+                    and lesson_item.status == STATUS_DRAFT
+                    for lesson_item in lessons
                 )
             )
         ]
 
         online_lessons = [
-                i for i in lessons if i.status in [STATUS_PUBLISH, STATUS_DRAFT]
+            i for i in lessons if i.status in [STATUS_PUBLISH, STATUS_DRAFT]
         ]
 
         online_lessons = sorted(
@@ -353,7 +354,7 @@ def get_preview_mode_lesson_tree_to_study_inner(
             attend_infos,
             updated_attend,
             attend_status_values,
-            paid
+            paid,
         )
 
 def get_lesson_tree_to_study_inner(
@@ -426,7 +427,7 @@ def get_lesson_tree_to_study_inner(
             attend_infos,
             updated_attend,
             attend_status_values,
-            paid
+            paid,
         )
 
 
@@ -647,7 +648,7 @@ def get_script_info(
     with app.app_context():
         ai_course_status = [STATUS_PUBLISH]
         if preview_mode:
-            ai_course_status.append(STATUS_DRAFT)
+            ai_course_status = [STATUS_DRAFT]
         script_info = (
             AILessonScript.query.filter(
                 AILessonScript.script_id == script_id,
