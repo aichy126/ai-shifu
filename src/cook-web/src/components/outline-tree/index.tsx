@@ -11,6 +11,8 @@ import ChapterSetting from '../chapter-setting';
 import { ItemChangedReason } from '../dnd-kit-sortable-tree/types';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../ui/alert-dialog';
 import { useTranslation } from 'react-i18next';
+import { useAlert } from '@/components/ui/use-alert';
+
 interface ICataTreeProps {
     currentNode?: Outline;
     items: TreeItems<Outline>;
@@ -70,7 +72,19 @@ const MinimalTreeItemComponent = React.forwardRef<
     const { focusId, actions, cataData, currentNode, currentShifu } = useShifu();
     const [showDeleteDialog, setShowDeleteDialog] = useState(false);
     const { t } = useTranslation();
+    const alert = useAlert();
     const onNodeChange = async (value: string) => {
+        if (!value || value.trim() === '') {
+            alert.showAlert({
+                title: t('outline-tree.name-required'),
+                description: '',
+                confirmText: t('common.confirm'),
+                onConfirm() {
+                    actions.removeOutline(props.item);
+                }
+            });
+            return;
+        }
         if (props.item.depth == 0) {
             await actions.createChapter({
                 parent_id: props.item.parentId,
