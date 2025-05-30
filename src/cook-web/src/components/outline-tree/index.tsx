@@ -22,7 +22,7 @@ interface ICataTreeProps {
 
 export const CataTree = React.memo((props: ICataTreeProps) => {
     const { items, onChange, } = props;
-    const { actions } = useShifu();
+    const { actions, focusId } = useShifu();
     const onItemsChanged = async (data: TreeItems<Outline>, reason: ItemChangedReason<Outline>) => {
         if (reason.type == 'dropped') {
             const parentId = reason.draggedItem.parentId;
@@ -42,7 +42,7 @@ export const CataTree = React.memo((props: ICataTreeProps) => {
 
     return (
         <SortableTree
-            disableSorting={false}
+            disableSorting={!!focusId}
             items={items}
             indentationWidth={20}
             onItemsChanged={onItemsChanged}
@@ -81,6 +81,7 @@ const MinimalTreeItemComponent = React.forwardRef<
                 confirmText: t('common.confirm'),
                 onConfirm() {
                     actions.removeOutline(props.item);
+                    actions.setFocusId("");
                 }
             });
             return;
@@ -136,6 +137,7 @@ const MinimalTreeItemComponent = React.forwardRef<
     const handleConfirmDelete = async () => {
         await actions.removeOutline(props.item);
         setShowDeleteDialog(false);
+        actions.setFocusId("");
     }
 
     return (
