@@ -50,6 +50,7 @@ interface DraggableBlockProps {
   onClickChangeType?: (id: string, type: BlockType) => void
   children: React.ReactNode
   disabled?: boolean
+  error?: string | null
 }
 
 const DraggableBlock = ({
@@ -61,7 +62,8 @@ const DraggableBlock = ({
   onClickRemove,
   onClickChangeType,
   children,
-  disabled = false
+  disabled = false,
+  error
 }: DraggableBlockProps) => {
   const { t } = useTranslation()
   const ref = React.useRef<HTMLDivElement>(null)
@@ -145,7 +147,7 @@ const DraggableBlock = ({
       <div
         ref={dragRef}
         style={{
-          border: '1px solid #ddd',
+          border: error ? '1px solid #ff4d4f' : '1px solid #ddd',
           padding: '1rem',
           backgroundColor: '#fff',
           borderRadius: '8px',
@@ -214,6 +216,11 @@ const DraggableBlock = ({
             </div>
           </div>
         </div>
+        {error && (
+          <div className=" text-red-500 text-sm">
+            {error}
+          </div>
+        )}
         {children}
       </div>
     </div>
@@ -241,7 +248,8 @@ const ScriptEditor = ({ id }: { id: string }) => {
     blockUITypes,
     currentNode,
     isLoading,
-    currentShifu
+    currentShifu,
+    blockErrors
   } = useShifu()
 
   const [debugBlockInfo, setDebugBlockInfo] = useState({
@@ -403,6 +411,7 @@ const ScriptEditor = ({ id }: { id: string }) => {
                     onClickDebug={onDebugBlock}
                     onClickRemove={onRemove}
                     disabled={expandedBlocks[block.properties.block_id]}
+                    error={blockErrors[block.properties.block_id]}
                   >
                     <div
                       id={block.properties.block_id}
