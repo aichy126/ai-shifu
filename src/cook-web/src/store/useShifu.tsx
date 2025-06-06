@@ -409,7 +409,7 @@ export const ShifuProvider: React.FC<{ children: ReactNode }> = ({ children }) =
             const result = await api.saveBlocks({ outline_id: outline, blocks: blockList, shifu_id: shifu_id || '' });
 
             if (!result) {
-                setError('保存失败：服务器响应无效');
+                setError('common.error.save.failed');
                 return result;
             }
 
