@@ -41,9 +41,11 @@ from ...service.lesson.const import STATUS_PUBLISH, STATUS_DRAFT
 
 
 def get_current_lesson(
-    app: Flask, lesssons: list[AICourseLessonAttendDTO]
+    app: Flask, lessons: list[AICourseLessonAttendDTO]
 ) -> AICourseLessonAttendDTO:
-    return lesssons[0]
+    if not lessons:
+        raise_error("LESSON.LESSON_NOT_FOUND_IN_COURSE")
+    return lessons[0]
 
 
 def generation_attend(
