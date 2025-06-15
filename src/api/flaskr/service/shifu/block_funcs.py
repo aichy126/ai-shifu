@@ -1,11 +1,20 @@
-from flaskr.service.shifu.dtos import BlockDto, OutlineEditDto, SaveBlockListResultDto
+from flaskr.service.shifu.dtos import (
+    BlockDto,
+    OutlineEditDto,
+    SaveBlockListResultDto,
+    OptionDto,
+    TextInputDto,
+)
 from flaskr.service.shifu.adapter import (
     convert_dict_to_block_dto,
     update_block_model,
     generate_block_dto,
 )
 from flaskr.service.lesson.models import AILesson, AILessonScript
-from flaskr.service.profile.profile_manage import save_profile_item_defination
+from flaskr.service.profile.profile_manage import (
+    get_profile_option_info,
+    get_profile_info,
+)
 from flaskr.service.profile.models import ProfileItem
 from flaskr.service.common.models import raise_error
 from flaskr.service.shifu.utils import (
@@ -26,6 +35,7 @@ from flaskr.service.lesson.const import (
 from flaskr.service.check_risk.funcs import check_text_with_risk_control
 import queue
 from flaskr.dao import redis_client
+from flaskr.i18n import get_current_language
 
 
 def get_block_list(app, user_id: str, outline_id: str):
@@ -201,8 +211,8 @@ def save_block_list_internal(
                         status=STATUS_DRAFT,
                     )
                     app.logger.info(f"new block : {block_model.script_id}")
+                    _fetch_profile_info_for_block_dto(app, block_dto)
                     update_block_result = update_block_model(block_model, block_dto)
-                    profile = None
                     if update_block_result.error_message:
                         error_messages[block_model.script_id] = (
                             update_block_result.error_message
@@ -228,7 +238,6 @@ def save_block_list_internal(
                             block_models.append(block_model)
                             save_block_ids.append(block_model.script_id)
                             # Continue to execute the subsequent processes using the original data
-                            profile = None
                             if original_block.script_ui_profile_id:
                                 profile_item = ProfileItem.query.filter(
                                     ProfileItem.profile_id
@@ -237,15 +246,6 @@ def save_block_list_internal(
                                 ).first()
                                 if profile_item:
                                     profile_items.append(profile_item)
-                    if update_block_result.data:
-                        profile = update_block_result.data
-                        # todo 如果是洗数据的话这里也可以干掉了
-                        profile_item = save_profile_item_defination(
-                            app, user_id, outline.course_id, profile
-                        )
-                        block_model.script_ui_profile_id = profile_item.profile_id
-                        block_model.script_check_prompt = profile_item.profile_prompt
-                        profile_items.append(profile_item)
                     check_text_with_risk_control(
                         app,
                         block_model.script_id,
@@ -261,12 +261,13 @@ def save_block_list_internal(
                     app.logger.info(f"new block : {block_model.id}")
                     block_models.append(block_model)
                     save_block_ids.append(block_model.script_id)
+
                 else:
                     # update origin block
                     new_block = block_model.clone()
                     old_check_str = block_model.get_str_to_check()
+                    _fetch_profile_info_for_block_dto(app, block_dto)
                     update_block_result = update_block_model(new_block, block_dto)
-                    profile = None
                     if update_block_result.error_message:
                         error_messages[new_block.script_id] = (
                             update_block_result.error_message
@@ -292,7 +293,6 @@ def save_block_list_internal(
                             block_models.append(new_block)
                             save_block_ids.append(new_block.script_id)
                             # Continue to execute the subsequent processes using the original data
-                            profile = None
                             if original_block.script_ui_profile_id:
                                 profile_item = ProfileItem.query.filter(
                                     ProfileItem.profile_id
@@ -301,18 +301,7 @@ def save_block_list_internal(
                                 ).first()
                                 if profile_item:
                                     profile_items.append(profile_item)
-                    else:
-                        profile = update_block_result.data
                     new_block.script_index = block_index
-                    if profile:
-                        profile_item = save_profile_item_defination(
-                            app, user_id, outline.course_id, profile
-                        )
-                        new_block.script_ui_profile_id = profile_item.profile_id
-                        new_block.script_check_prompt = profile_item.profile_prompt
-                        if profile_item.profile_prompt_model:
-                            new_block.script_model = profile_item.profile_prompt_model
-                        profile_items.append(profile_item)
                     if new_block and not new_block.eq(block_model):
                         # update origin block and save to history
                         new_block.status = STATUS_DRAFT
@@ -401,6 +390,9 @@ def add_block(app, user_id: str, outline_id: str, block: BlockDto, block_index: 
             updated_user_id=user_id,
             status=STATUS_DRAFT,
         )
+
+        _fetch_profile_info_for_block_dto(app, block_dto)
+
         update_block_result = update_block_model(block_model, block_dto, new_block=True)
         if update_block_result.error_message:
             raise_error(update_block_result.error_message)
@@ -482,3 +474,18 @@ def get_system_block_by_outline_id(app, outline_id: str):
             if not outline:
                 raise_error("SHIFU.OUTLINE_NOT_FOUND")
         return block
+
+
+def _fetch_profile_info_for_block_dto(app, block_dto):
+    """根据 block_dto 的类型获取相应的 profile 信息"""
+    if isinstance(block_dto.block_ui, OptionDto) and block_dto.block_ui.profile_id:
+        block_dto.profile_option_info = get_profile_option_info(
+            app, block_dto.block_ui.profile_id, get_current_language()
+        )
+    elif (
+        isinstance(block_dto.block_ui, TextInputDto) and block_dto.block_ui.profile_ids
+    ):
+        if len(block_dto.block_ui.profile_ids) == 1:
+            block_dto.input_profile_info = get_profile_info(
+                app, block_dto.block_ui.profile_ids[0]
+            )
