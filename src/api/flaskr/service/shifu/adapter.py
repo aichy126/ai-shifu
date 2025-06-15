@@ -204,6 +204,7 @@ def update_block_model(
     block_model: AILessonScript, block_dto: BlockDto, new_block: bool = False
 ) -> BlockUpdateResultDto:
     from flask import current_app as app
+
     block_model.script_name = block_dto.block_name
     block_model.script_desc = block_dto.block_desc
     block_model.script_media_url = ""
@@ -326,17 +327,22 @@ def update_block_model(
             # 读取变量信息
             from flaskr.service.profile.profile_manage import get_profile_option_info
             from flaskr.i18n import get_current_language
-            profile_option_info = get_profile_option_info(app, block_dto.block_ui.profile_id, get_current_language())
+
+            profile_option_info = get_profile_option_info(
+                app, block_dto.block_ui.profile_id, get_current_language()
+            )
             if not profile_option_info:
                 return BlockUpdateResultDto(None, _("SHIFU.PROFILE_NOT_FOUND"))
             if profile_option_info.info.profile_type != PROFILE_TYPE_INPUT_SELECT:
-                    return BlockUpdateResultDto(None, _("SHIFU.PROFILE_TYPE_NOT_MATCH"))
+                return BlockUpdateResultDto(None, _("SHIFU.PROFILE_TYPE_NOT_MATCH"))
             # 给块内容赋值变量信息
             # block_model.script_ui_content = block_dto.block_ui.option_key
             # block_model.script_ui_content = block_dto.block_ui.option_name
             block_dto.block_ui.profile_key = profile_option_info.info.profile_key
             block_model.script_ui_content = profile_option_info.info.profile_key
-            block_model.script_ui_profile = "[" +  profile_option_info.info.profile_key + "]"
+            block_model.script_ui_profile = (
+                "[" + profile_option_info.info.profile_key + "]"
+            )
             # block_model.script_ui_profile = "[" + block_dto.block_ui.profile_key + "]"
             block_model.script_ui_profile_id = profile_option_info.info.profile_id
 
@@ -358,7 +364,7 @@ def update_block_model(
             buttons = [
                 ButtonDto(
                     button_name=profile_item_value.name,
-                    button_key=profile_item_value.value
+                    button_key=profile_item_value.value,
                 )
                 for profile_item_value in profile_item_value_list
             ]
@@ -371,7 +377,9 @@ def update_block_model(
                     profile_option_info.info.profile_key,
                     profile_option_info.info.profile_key,
                     [
-                        ProfileValueDto(profile_item_value.name, profile_item_value.value)
+                        ProfileValueDto(
+                            profile_item_value.name, profile_item_value.value
+                        )
                         for profile_item_value in profile_item_value_list
                     ],
                 )
@@ -388,22 +396,21 @@ def update_block_model(
 
             app.logger.info(f"block_dto.block_ui.prompt: {block_dto.block_ui}")
 
-
-
             block_model.script_ui_type = UI_TYPE_INPUT
             if not block_dto.block_ui.profile_ids:
                 return BlockUpdateResultDto(None, _("SHIFU.PROFILE_KEY_REQUIRED"))
             if len(block_dto.block_ui.profile_ids) != 1:
                 return BlockUpdateResultDto(None, _("SHIFU.PROFILE_IDS_NOT_CORRECT"))
-            #这里只处理只有一个变量的情况
+            # 这里只处理只有一个变量的情况
             profile_id = block_dto.block_ui.profile_ids[0]
             from flaskr.service.profile.profile_manage import get_profile_info
+
             input_profile_info = get_profile_info(app, profile_id)
             if not input_profile_info:
                 return BlockUpdateResultDto(None, _("SHIFU.PROFILE_NOT_FOUND"))
             block_model.script_ui_content = input_profile_info.profile_remark
             block_model.script_ui_profile_id = input_profile_info.profile_id
-            block_dto.block_ui.input_key =input_profile_info.profile_key
+            block_dto.block_ui.input_key = input_profile_info.profile_key
             block_dto.block_ui.input_name = input_profile_info.profile_remark
             block_dto.block_ui.input_placeholder = input_profile_info.profile_remark
 

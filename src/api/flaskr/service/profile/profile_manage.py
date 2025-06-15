@@ -129,7 +129,6 @@ def get_profile_item_definition_option_list(
         return get_profile_option_list(app, parent_id, current_language)
 
 
-
 # quick add profile item
 def add_profile_item_quick(app: Flask, parent_id: str, key: str, user_id: str):
     with app.app_context():
@@ -629,10 +628,9 @@ def save_profile_item_defination(
     return profile_item
 
 
-
 def get_profile_info(app: Flask, parent_id: str):
     profile_item = ProfileItem.query.filter(
-        ProfileItem.profile_id== parent_id,
+        ProfileItem.profile_id == parent_id,
         ProfileItem.status == 1,
     ).first()
     if not profile_item:
@@ -640,20 +638,21 @@ def get_profile_info(app: Flask, parent_id: str):
     return profile_item
 
 
-def get_profile_option_info(app: Flask, parent_id: str,language: str):
+def get_profile_option_info(app: Flask, parent_id: str, language: str):
     profile_item = ProfileItem.query.filter(
-        ProfileItem.profile_id== parent_id,
+        ProfileItem.profile_id == parent_id,
         ProfileItem.status == 1,
     ).first()
     if not profile_item:
         return None
-    profile_option_list = get_profile_option_list(app, parent_id,language)
+    profile_option_list = get_profile_option_list(app, parent_id, language)
     return ProfileOptionListDto(
         info=profile_item,
         list=profile_option_list,
     )
 
-def get_profile_option_list(app: Flask, parent_id: str,language: str):
+
+def get_profile_option_list(app: Flask, parent_id: str, language: str):
     profile_option_list = (
         ProfileItemValue.query.filter(
             ProfileItemValue.profile_id == parent_id, ProfileItemValue.status == 1
@@ -669,24 +668,31 @@ def get_profile_option_list(app: Flask, parent_id: str,language: str):
             ProfileItemI18n.conf_type == PROFILE_CONF_TYPE_ITEM,
         ).all()
 
-        available_languages = set(item.language for item in profile_item_value_i18n_list)
+        available_languages = set(
+            item.language for item in profile_item_value_i18n_list
+        )
 
         if len(available_languages) == 1 and language not in available_languages:
             language = list(available_languages)[0]
 
         profile_item_value_i18n_map = {
-            (item.parent_id, item.language): item for item in profile_item_value_i18n_list
+            (item.parent_id, item.language): item
+            for item in profile_item_value_i18n_list
         }
     else:
         profile_item_value_i18n_map = {}
         profile_option_list = []
 
     from objprint import op
+
     op(profile_item_value_i18n_map)
     op(language)
     return [
         ProfileValueDto(
-            name=profile_item_value_i18n_map.get((profile_option.profile_item_id, language), ProfileItemI18n()).profile_item_remark or "",
+            name=profile_item_value_i18n_map.get(
+                (profile_option.profile_item_id, language), ProfileItemI18n()
+            ).profile_item_remark
+            or "",
             value=profile_option.profile_value,
         )
         for profile_option in profile_option_list
