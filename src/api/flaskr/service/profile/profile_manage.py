@@ -628,9 +628,9 @@ def save_profile_item_defination(
     return profile_item
 
 
-def get_profile_info(app: Flask, parent_id: str):
+def get_profile_info(app: Flask, profile_id: str):
     profile_item = ProfileItem.query.filter(
-        ProfileItem.profile_id == parent_id,
+        ProfileItem.profile_id == profile_id,
         ProfileItem.status == 1,
     ).first()
     if not profile_item:
@@ -638,24 +638,24 @@ def get_profile_info(app: Flask, parent_id: str):
     return profile_item
 
 
-def get_profile_option_info(app: Flask, parent_id: str, language: str):
+def get_profile_option_info(app: Flask, profile_id: str, language: str):
     profile_item = ProfileItem.query.filter(
-        ProfileItem.profile_id == parent_id,
+        ProfileItem.profile_id == profile_id,
         ProfileItem.status == 1,
     ).first()
     if not profile_item:
         return None
-    profile_option_list = get_profile_option_list(app, parent_id, language)
+    profile_option_list = get_profile_option_list(app, profile_id, language)
     return ProfileOptionListDto(
         info=profile_item,
         list=profile_option_list,
     )
 
 
-def get_profile_option_list(app: Flask, parent_id: str, language: str):
+def get_profile_option_list(app: Flask, profile_id: str, language: str):
     profile_option_list = (
         ProfileItemValue.query.filter(
-            ProfileItemValue.profile_id == parent_id, ProfileItemValue.status == 1
+            ProfileItemValue.profile_id == profile_id, ProfileItemValue.status == 1
         )
         .order_by(ProfileItemValue.profile_value_index.asc())
         .all()
@@ -682,11 +682,6 @@ def get_profile_option_list(app: Flask, parent_id: str, language: str):
     else:
         profile_item_value_i18n_map = {}
         profile_option_list = []
-
-    from objprint import op
-
-    op(profile_item_value_i18n_map)
-    op(language)
     return [
         ProfileValueDto(
             name=profile_item_value_i18n_map.get(
