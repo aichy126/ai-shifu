@@ -265,12 +265,17 @@ def update_chapter_order(
         if not move_chapter:
             raise_error("SHIFU.CHAPTER_NOT_FOUND")
 
+        # 判断是否真正跨章
+        is_cross_chapter = False
         if move_to_parent_id:
-
             target_chapter = find_node_by_id(outlines, move_to_parent_id)
             if not target_chapter:
                 raise_error("SHIFU.CHAPTER_NOT_FOUND")
+            # 如果目标父章节不是当前章节的父章节，说明是跨章
+            if move_chapter.parent_node and move_chapter.parent_node.outline.lesson_id != move_to_parent_id:
+                is_cross_chapter = True
 
+        if is_cross_chapter:
             max_index = 0
             for child in target_chapter.children:
                 if child.outline.lesson_index > max_index:
@@ -340,8 +345,19 @@ def update_chapter_order(
                 q.put(sub_node)
 
         if reorder:
-            reorder_outline_tree_and_save(app, root, user_id, time)
+            for id in chapter_ids:
+                node = find_node_by_id(outlines, id)
+                if node:
+                    change_outline_status_to_history(node.outline, user_id, time)
+                    new_outline = node.outline.clone()
+                    new_outline.status = STATUS_DRAFT
+                    new_outline.updated_user_id = user_id
+                    new_outline.updated = time
+                    node.outline = new_outline
+                    db.session.add(new_outline)
 
+            reorder_outline_tree_and_save(app, root, user_id, time)
+            db.session.commit()
         else:
             raise_error("SHIFU.CHAPTER_IDS_NOT_FOUND")
 
@@ -362,15 +378,6 @@ def get_outline_tree(app, user_id: str, shifu_id: str):
 
 
 def find_node_by_id(nodes, target_id):
-    """递归查找指定 ID 的节点
-
-    Args:
-        nodes: 节点列表
-        target_id: 目标节点 ID
-
-    Returns:
-        找到的节点，如果没找到返回 None
-    """
     for node in nodes:
         if node.outline.lesson_id == target_id:
             return node
@@ -382,30 +389,15 @@ def find_node_by_id(nodes, target_id):
 
 
 def update_children_lesson_no(node, parent_lesson_no, start_index, user_id, time):
-    """更新节点的所有子节点的 lesson_no
-
-    Args:
-        node: 当前节点
-        parent_lesson_no: 父节点的 lesson_no
-        start_index: 起始索引
-        user_id: 用户 ID
-        time: 更新时间
-    """
     for i, child in enumerate(node.children):
         new_index = start_index + i + 1
         child.outline.lesson_index = new_index
         child.outline.lesson_no = f"{parent_lesson_no}{new_index:02d}"
         child.outline.updated_user_id = user_id
         child.outline.status = STATUS_DRAFT
-
-        # 将原节点状态改为历史
         change_outline_status_to_history(child.outline, user_id, time)
-
-        # 创建新节点
         new_child_outline = child.outline.clone()
         new_child_outline.status = STATUS_DRAFT
         db.session.add(new_child_outline)
         child.outline = new_child_outline
-
-        # 递归更新子节点
         update_children_lesson_no(child, child.outline.lesson_no, 0, user_id, time)
