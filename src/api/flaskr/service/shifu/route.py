@@ -701,6 +701,12 @@ def register_shifu_routes(app: Flask, path_prefix="/api/shifu"):
                         items:
                             type: string
                         description: chapter ids
+                    move_chapter_id:
+                        type: string
+                        description: the chapter id to be moved
+                    move_to_parent_id:
+                        type: string
+                        description: the parent chapter id where the chapter will be moved to
         responses:
             200:
                 description: update chapter order success

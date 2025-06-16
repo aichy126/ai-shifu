@@ -265,14 +265,15 @@ def update_chapter_order(
         if not move_chapter:
             raise_error("SHIFU.CHAPTER_NOT_FOUND")
 
-        # 判断是否真正跨章
         is_cross_chapter = False
         if move_to_parent_id:
             target_chapter = find_node_by_id(outlines, move_to_parent_id)
             if not target_chapter:
                 raise_error("SHIFU.CHAPTER_NOT_FOUND")
-            # 如果目标父章节不是当前章节的父章节，说明是跨章
-            if move_chapter.parent_node and move_chapter.parent_node.outline.lesson_id != move_to_parent_id:
+            if (
+                move_chapter.parent_node
+                and move_chapter.parent_node.outline.lesson_id != move_to_parent_id
+            ):
                 is_cross_chapter = True
 
         if is_cross_chapter:
