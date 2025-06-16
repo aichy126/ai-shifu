@@ -293,7 +293,6 @@ def update_chapter_order(
             move_chapter.outline.lesson_index = new_max_index + 1
             move_chapter.outline.lesson_no = f"{target_chapter.outline.lesson_no}{move_chapter.outline.lesson_index:02d}"
             move_chapter.outline.updated_user_id = user_id
-            move_chapter.outline.updated = time
             move_chapter.outline.status = STATUS_DRAFT
 
             change_outline_status_to_history(move_chapter.outline, user_id, time)
@@ -397,7 +396,6 @@ def update_children_lesson_no(node, parent_lesson_no, start_index, user_id, time
         child.outline.lesson_index = new_index
         child.outline.lesson_no = f"{parent_lesson_no}{new_index:02d}"
         child.outline.updated_user_id = user_id
-        child.outline.updated = time
         child.outline.status = STATUS_DRAFT
 
         # 将原节点状态改为历史
