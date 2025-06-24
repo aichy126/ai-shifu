@@ -11,12 +11,18 @@ from ...service.lesson.const import (
     STATUS_DELETE,
     STATUS_HISTORY,
     STATUS_TO_DELETE,
+    SCRIPT_TYPE_SYSTEM,
+    ASK_MODE_ENABLE,
 )
 from ..check_risk.funcs import check_text_with_risk_control
 from ..common.models import raise_error, raise_error_with_args
 from ...common.config import get_config
 from ...service.resource.models import Resource
-from .utils import get_existing_outlines_for_publish, get_existing_blocks_for_publish
+from .utils import (
+    get_existing_outlines_for_publish,
+    get_existing_blocks_for_publish,
+    get_original_outline_tree,
+)
 import oss2
 import uuid
 import json
@@ -25,6 +31,10 @@ from io import BytesIO
 from urllib.parse import urlparse
 import re
 import time
+from collections import defaultdict
+import os
+from flaskr.api.llm import invoke_llm
+from flaskr.api.langfuse import langfuse_client
 
 
 def get_raw_shifu_list(
@@ -867,3 +877,143 @@ def get_video_info(app, user_id: str, url: str) -> dict:
         except Exception as e:
             app.logger.error(f"Unexpected error getting video info: {str(e)}")
             raise_error("FILE.VIDEO_GET_INFO_ERROR")
+
+
+def get_shifu_summary(app, shifu_id: str):
+    """
+    获取课程摘要信息
+    Obtain the course summary information
+    """
+    with app.app_context():
+        shifu = AICourse.query.filter(AICourse.course_id == shifu_id).first()
+        if not shifu:
+            app.logger.error(f"get_shifu_summary shifu_id: {shifu_id} not found")
+            return
+        # 获取提示词模板
+        # Obtain the prompt word template
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        prompt_path = os.path.join(current_dir, "../../../prompts/summary.md")
+        with open(prompt_path, "r", encoding="utf-8") as f:
+            summary_prompt = f.read()
+
+        # 获取结构化章节数据
+        # Obtain structured chapter data
+        outline_tree = get_original_outline_tree(app, shifu_id)
+        outline_ids = []
+
+        # 获取所有节的ID ,章下面没有块所以不用获取
+        # Obtain all the lesson ids, chapters do not have blocks, so no need to get
+        for chapter in outline_tree:
+            for section in chapter.children:
+                outline_ids.append(section.outline.lesson_id)
+        # 获取所有节的块
+        # Obtain all the lesson blocks
+        all_blocks = get_all_publish_blocks(app, outline_ids)
+
+        # Obtain all the lesson data
+        lesson_infos = (
+            AILesson.query.filter(
+                AILesson.lesson_id.in_(outline_ids),
+                AILesson.status == STATUS_PUBLISH,
+            )
+            .order_by(AILesson.id.desc())
+            .all()
+        )
+        lesson_map = {lesson.lesson_id: lesson for lesson in lesson_infos}
+
+        for chapter in outline_tree:
+            for section in chapter.children:
+                section_blocks = all_blocks[section.outline.lesson_id]
+                now_lesson_script_prompts = ""
+                for block in section_blocks:
+                    now_lesson_script_prompts += block.script_prompt
+                final_prompt = summary_prompt.replace(
+                    "{all_script_content}", now_lesson_script_prompts
+                )
+                # 调用课程关联的 ai模型 获取摘要
+                # Call the ai model associated with the course to get the summary
+                model_name = ""
+                temperature = 0.3
+                if shifu.course_default_model:
+                    model_name = shifu.course_default_model
+                if shifu.ask_model:
+                    model_name = shifu.ask_model
+                if not model_name:
+                    app.logger.error(
+                        f"get_shifu_summary shifu_id: {shifu_id} model_name is empty"
+                    )
+                    return
+                if shifu.course_default_temperature:
+                    temperature = shifu.course_default_temperature
+                summary = get_summary(
+                    app,
+                    prompt=final_prompt,
+                    model_name=model_name,
+                    temperature=temperature,
+                )
+                # 更新到章节
+                # Update to the section
+                lesson = lesson_map.get(section.outline.lesson_id)
+                if lesson:
+                    lesson.ask_prompt = summary
+                    lesson.lesson_desc = summary
+                    lesson.ask_mode = ASK_MODE_ENABLE
+                # print(summary)
+        db.session.commit()
+        return None
+
+
+def get_all_publish_blocks(app, outline_ids: list[str]):
+    """
+    返回 {outline_id: [block, ...]}，只包含 STATUS_PUBLISH，且每组按 script_index 升序
+    Return {outline_id: [block, ...]}, only contains STATUS_PUBLISH, and each group is sorted by script_index in ascending order
+    """
+    query = AILessonScript.query.filter(
+        AILessonScript.lesson_id.in_(outline_ids),
+        AILessonScript.status == STATUS_PUBLISH,
+        AILessonScript.script_type != SCRIPT_TYPE_SYSTEM,
+    )
+    blocks = query.all()
+    # 分组
+    # Group
+    result = defaultdict(list)
+    for block in blocks:
+        result[block.lesson_id].append(block)
+    # 每组排序
+    # Sort each group
+    for k in result:
+        result[k] = sorted(result[k], key=lambda b: b.script_index)
+    return dict(result)
+
+
+def get_summary(app, prompt, model_name, user_id=None, temperature=0.8):
+    """
+    调用大模型生成摘要
+    :param app: Flask app
+    :param prompt: 需要摘要的 prompt
+    :param model_name: 使用的模型名称
+    :param user_id: 可选，用户ID
+    :param temperature: 可选，采样温度
+    :return: 摘要文本
+    Call the ai model associated with the course to get the summary
+    """
+    # Create langfuse trace/span
+    trace = langfuse_client.trace(
+        user_id=user_id or "shifu-summary", name="shifu_summary"
+    )
+    span = trace.span(name="shifu_summary", input=prompt)
+    response = invoke_llm(
+        app,
+        user_id or "shifu-summary",
+        span,
+        model_name,
+        prompt,
+        temperature=temperature,
+        generation_name="shifu_summary",
+    )
+    summary = ""
+    for chunk in response:
+        summary += getattr(chunk, "result", "")
+    span.update(output=summary)
+    span.end()
+    return summary
