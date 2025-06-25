@@ -16,7 +16,8 @@ from .utils import (
     get_existing_outlines,
     get_existing_blocks,
     change_outline_status_to_history,
-    change_block_status_to_history,
+    mark_outline_to_delete,
+    mark_block_to_delete,
     get_original_outline_tree,
     OutlineTreeNode,
     reorder_outline_tree_and_save,
@@ -163,7 +164,7 @@ def modify_chapter(
                     {AILesson.lesson_index: AILesson.lesson_index + 1},
                     synchronize_session=False,
                 )
-            if new_chapter != chapter:
+            if not new_chapter.eq(chapter):
                 change_outline_status_to_history(chapter, user_id, time)
                 db.session.add(new_chapter)
             existing_chapter_count = AILesson.query.filter(
@@ -207,7 +208,7 @@ def delete_chapter(app, user_id: str, chapter_id: str):
         )
         outline_ids = []
         if chapter:
-            change_outline_status_to_history(chapter, user_id, time)
+            mark_outline_to_delete(chapter, user_id, time)
             outline_ids.append(chapter.lesson_id)
             outlines = get_existing_outlines(app, chapter.course_id)
             for outline in outlines:
@@ -217,9 +218,10 @@ def delete_chapter(app, user_id: str, chapter_id: str):
                         app.logger.info(
                             f"delete outline: {outline.lesson_id} {outline.lesson_no} {outline.lesson_name}"
                         )
-                        change_outline_status_to_history(outline, user_id, time)
+                        mark_outline_to_delete(outline, user_id, time)
                         outline_ids.append(outline.lesson_id)
                         continue
+                    # reorder the outline
                     change_outline_status_to_history(outline, user_id, time)
                     new_outline = outline.clone()
                     new_outline.status = STATUS_DRAFT
@@ -238,7 +240,7 @@ def delete_chapter(app, user_id: str, chapter_id: str):
                     db.session.add(new_outline)
             blocks = get_existing_blocks(app, outline_ids)
             for block in blocks:
-                change_block_status_to_history(block, user_id, time)
+                mark_block_to_delete(block, user_id, time)
             db.session.commit()
             return True
         raise_error("SHIFU.CHAPTER_NOT_FOUND")
@@ -249,18 +251,78 @@ def delete_chapter(app, user_id: str, chapter_id: str):
 # @date: 2025-04-14
 # update chapter order will also update the lesson_no of the outlines under the chapter
 def update_chapter_order(
-    app, user_id: str, shifu_id: str, chapter_ids: list
+    app,
+    user_id: str,
+    shifu_id: str,
+    chapter_ids: list,
+    move_chapter_id: str,
+    move_to_parent_id: str = None,
 ) -> list[ChapterDto]:
     with app.app_context():
         time = datetime.now()
+
         outlines = get_original_outline_tree(app, shifu_id)
 
-        q = queue.Queue()
+        move_chapter = find_node_by_id(outlines, move_chapter_id)
+        if not move_chapter:
+            raise_error("SHIFU.CHAPTER_NOT_FOUND")
+
+        is_cross_chapter = False
+        if move_to_parent_id:
+            target_chapter = find_node_by_id(outlines, move_to_parent_id)
+            if not target_chapter:
+                raise_error("SHIFU.CHAPTER_NOT_FOUND")
+            if (
+                move_chapter.parent_node
+                and move_chapter.parent_node.outline.lesson_id != move_to_parent_id
+            ):
+                is_cross_chapter = True
+
+        if is_cross_chapter:
+            max_index = 0
+            for child in target_chapter.children:
+                if child.outline.lesson_index > max_index:
+                    max_index = child.outline.lesson_index
+
+            update_children_lesson_no(
+                target_chapter,
+                target_chapter.outline.lesson_no,
+                max_index,
+                user_id,
+                time,
+            )
+
+            new_max_index = 0
+            for child in target_chapter.children:
+                if child.outline.lesson_index > new_max_index:
+                    new_max_index = child.outline.lesson_index
+
+            move_chapter.outline.parent_id = move_to_parent_id
+            move_chapter.outline.lesson_index = new_max_index + 1
+            move_chapter.outline.lesson_no = f"{target_chapter.outline.lesson_no}{move_chapter.outline.lesson_index:02d}"
+            move_chapter.outline.updated_user_id = user_id
+            move_chapter.outline.status = STATUS_DRAFT
+
+            change_outline_status_to_history(move_chapter.outline, user_id, time)
+
+            new_outline = move_chapter.outline.clone()
+            new_outline.id = 0
+            new_outline.status = STATUS_DRAFT
+            db.session.add(new_outline)
+            move_chapter.outline = new_outline
+
+            update_children_lesson_no(
+                move_chapter, move_chapter.outline.lesson_no, 0, user_id, time
+            )
+
+            db.session.commit()
+            outlines = get_original_outline_tree(app, shifu_id)
+
         root = OutlineTreeNode(None)
         for outline in outlines:
             root.add_child(outline)
+        q = queue.Queue()
         q.put(root)
-
         reorder = False
         while not q.empty():
             node = q.get()
@@ -275,7 +337,6 @@ def update_chapter_order(
             ]
             if set(check_in) == set(chapter_ids):
                 app.logger.info(f"chapter_ids: {chapter_ids} {node.lesson_no}")
-
                 node.children = []
                 for id in chapter_ids:
                     node.children.append(
@@ -287,6 +348,17 @@ def update_chapter_order(
                 q.put(sub_node)
 
         if reorder:
+            for id in chapter_ids:
+                node = find_node_by_id(outlines, id)
+                if node:
+                    change_outline_status_to_history(node.outline, user_id, time)
+                    new_outline = node.outline.clone()
+                    new_outline.status = STATUS_DRAFT
+                    new_outline.updated_user_id = user_id
+                    new_outline.updated = time
+                    node.outline = new_outline
+                    db.session.add(new_outline)
+
             reorder_outline_tree_and_save(app, root, user_id, time)
             db.session.commit()
         else:
@@ -306,3 +378,29 @@ def get_outline_tree(app, user_id: str, shifu_id: str):
         outlines = get_original_outline_tree(app, shifu_id)
         outline_tree_dto = [SimpleOutlineDto(node) for node in outlines]
         return outline_tree_dto
+
+
+def find_node_by_id(nodes, target_id):
+    for node in nodes:
+        if node.outline.lesson_id == target_id:
+            return node
+        if node.children:
+            found = find_node_by_id(node.children, target_id)
+            if found:
+                return found
+    return None
+
+
+def update_children_lesson_no(node, parent_lesson_no, start_index, user_id, time):
+    for i, child in enumerate(node.children):
+        new_index = start_index + i + 1
+        child.outline.lesson_index = new_index
+        child.outline.lesson_no = f"{parent_lesson_no}{new_index:02d}"
+        child.outline.updated_user_id = user_id
+        child.outline.status = STATUS_DRAFT
+        change_outline_status_to_history(child.outline, user_id, time)
+        new_child_outline = child.outline.clone()
+        new_child_outline.status = STATUS_DRAFT
+        db.session.add(new_child_outline)
+        child.outline = new_child_outline
+        update_children_lesson_no(child, child.outline.lesson_no, 0, user_id, time)

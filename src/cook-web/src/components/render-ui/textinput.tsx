@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import { Input } from '../ui/input'
-import { TextareaAutosize } from '@/components/ui/textarea-autosize'
+import { Editor } from '@/components/cm-editor'
 import InputNumber from '@/components/input-number'
 import ModelList from '@/components/model-list'
 import { Button } from '../ui/button'
@@ -14,7 +14,7 @@ interface TextInputProps {
                 "prompt": string,
                 "profiles": string[],
                 "model": string,
-                "temprature": string,
+                "temperature": string,
                 "other_conf": string,
             },
             "type": string
@@ -31,7 +31,7 @@ const TextInputPropsEqual = (prevProps: TextInputProps, nextProps: TextInputProp
     if (! _.isEqual(prevProps.properties, nextProps.properties)) {
         return false
     }
-    if (!_.isEqual(prevProps.properties.prompt.properties.temprature, nextProps.properties.prompt.properties.temprature)) {
+    if (!_.isEqual(prevProps.properties.prompt.properties.temperature, nextProps.properties.prompt.properties.temperature)) {
         return false
     }
     if (!_.isEqual(prevProps.properties.prompt.properties.profiles, nextProps.properties.prompt.properties.profiles)) {
@@ -53,7 +53,7 @@ export default memo(function TextInput(props: TextInputProps) {
     const [tempProperties, setTempProperties] = useState(properties);
     const [changed, setChanged] = useState(false);
     const { t } = useTranslation();
-    const onValueChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const onValueChange = (value: string) => {
         if (!changed) {
             setChanged(true);
             onChanged?.(true);
@@ -65,7 +65,7 @@ export default memo(function TextInput(props: TextInputProps) {
                 ...tempProperties.prompt,
                 properties: {
                     ...tempProperties.prompt.properties,
-                    prompt: e.target.value
+                    prompt: value
                 }
             }
         });
@@ -91,7 +91,7 @@ export default memo(function TextInput(props: TextInputProps) {
                 ...tempProperties.prompt,
                 properties: {
                     ...tempProperties.prompt.properties,
-                    temprature: value.toString()
+                    temperature: value.toString()
                 }
             }
         });
@@ -130,17 +130,20 @@ export default memo(function TextInput(props: TextInputProps) {
                 </label>
                 <Input value={tempProperties.input_key} onChange={onInputChange} className="w-full" ></Input>
             </div>
-            <div className='flex flex-row items-center space-x-1'>
+            <div className='flex flex-row space-x-1'>
                 <label htmlFor="" className='whitespace-nowrap w-[70px] shrink-0'>
                     {t('textinput.prompt')}
                 </label>
-                <TextareaAutosize
-                    value={tempProperties.prompt.properties.prompt}
-                    onChange={onValueChange}
-                    placeholder={t('textinput.prompt-placeholder')}
-                    maxRows={20}
-
-                />
+                <div className="w-full rounded-md border bg-background px-1 py-1">
+                    <div style={{ minHeight: '72px', maxHeight: '480px', overflowY: 'auto' }}>
+                        <Editor
+                            content={tempProperties.prompt.properties.prompt}
+                            onChange={onValueChange}
+                            isEdit={true}
+                            profiles={tempProperties.prompt.properties.profiles}
+                        />
+                    </div>
+                </div>
             </div>
             <div className='flex flex-row items-center space-x-1'>
                 <label htmlFor="" className='whitespace-nowrap w-[70px] shrink-0'>
@@ -153,7 +156,7 @@ export default memo(function TextInput(props: TextInputProps) {
                     {t('textinput.temperature')}
                 </label>
                 <InputNumber min={0} max={1} step={0.1}
-                    value={Number(tempProperties.prompt?.properties?.temprature)}
+                    value={Number(tempProperties.prompt?.properties?.temperature)}
                     onChange={onTemperatureChange} className="w-full"
                 ></InputNumber>
             </div>
