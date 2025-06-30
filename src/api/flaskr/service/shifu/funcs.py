@@ -3,6 +3,7 @@ from datetime import datetime
 from .dtos import ShifuDto, ShifuDetailDto
 from ..lesson.models import AICourse, AILesson, AILessonScript
 from ...util.uuid import generate_id
+from ...util.prompt_loader import load_prompt_template
 from .models import FavoriteScenario, AiCourseAuth
 from ..common.dtos import PageNationDTO
 from ...service.lesson.const import (
@@ -185,7 +186,7 @@ def create_shifu(
             created_user_id=user_id,
             updated_user_id=user_id,
             status=STATUS_DRAFT,
-            course_keywords=shifu_keywords,
+            course_keywords=",".join(shifu_keywords) if shifu_keywords else "",
         )
         check_text_with_risk_control(app, shifu_id, user_id, course.get_str_to_check())
         db.session.add(course)
@@ -291,6 +292,14 @@ def check_shifu_can_publish(app, shifu_id: str):
         if shifu:
             return
         raise_error("SHIFU.SHIFU_NOT_FOUND")
+
+
+def _run_summary_with_error_handling(app, shifu_id):
+    """Run shifu summary generation with error handling"""
+    try:
+        get_shifu_summary(app, shifu_id)
+    except Exception as e:
+        app.logger.error(f"Failed to generate shifu summary for {shifu_id}: {str(e)}")
 
 
 def publish_shifu(app, user_id, shifu_id: str):
@@ -446,7 +455,8 @@ def publish_shifu(app, user_id, shifu_id: str):
                 }
             )
             db.session.commit()
-            thread = threading.Thread(target=get_shifu_summary, args=(app, shifu_id))
+            thread = threading.Thread(target=_run_summary_with_error_handling, args=(app, shifu_id))
+            thread.daemon = True  # Ensure thread doesn't prevent app shutdown
             thread.start()
             return get_config("WEB_URL", "UNCONFIGURED") + "/c/" + shifu.course_id
         raise_error("SHIFU.SHIFU_NOT_FOUND")
@@ -555,8 +565,8 @@ def _warm_up_cdn(app, url: str, ALI_API_ID: str, ALI_API_SECRET: str, endpoint: 
         return False
 
     except Exception as e:
-        app.logger.warning(f"CDN预热失败: {str(e)}")
-        app.logger.warning(f"预热URL: {url}")
+        app.logger.warning(f"CDN preheating failed: {str(e)}")
+        app.logger.warning(f"Preheating URL: {url}")
         app.logger.warning(
             f"ObjectPath: {object_path if 'object_path' in locals() else 'Not set'}"
         )
@@ -789,7 +799,11 @@ def save_shifu_detail(
                 shifu_name=new_shifu.course_name,
                 shifu_description=new_shifu.course_desc,
                 shifu_avatar=new_shifu.course_teacher_avatar,
-                shifu_keywords=new_shifu.course_keywords,
+                shifu_keywords=(
+                    new_shifu.course_keywords.split(",")
+                    if new_shifu.course_keywords
+                    else []
+                ),
                 shifu_model=new_shifu.course_default_model,
                 shifu_price=str(new_shifu.course_price),
                 shifu_preview_url=get_config("WEB_URL", "UNCONFIGURED")
@@ -914,8 +928,7 @@ def get_video_info(app, user_id: str, url: str) -> dict:
 
 def get_shifu_summary(app, shifu_id: str):
     """
-    获取课程摘要信息
-    Obtain the course summary information
+    Obtain the shifu summary information
     """
     with app.app_context():
         shifu = AICourse.query.filter(AICourse.course_id == shifu_id).first()
@@ -923,20 +936,21 @@ def get_shifu_summary(app, shifu_id: str):
             app.logger.error(f"get_shifu_summary shifu_id: {shifu_id} not found")
             return
 
-        # 获取提示词模板
-        summary_prompt_template, ask_prompt_template = _load_prompt_templates()
+        # Get the prompt word template
+        summary_prompt_template = load_prompt_template("summary")
+        ask_prompt_template = load_prompt_template("ask")
 
-        # 获取课程数据
+        # Get course data
         outline_tree, outline_ids, all_blocks, lesson_map = _get_course_data(
             app, shifu_id
         )
 
-        # 生成摘要
+        # Generate summaries
         outline_summary_map = _generate_summaries(
             app, outline_tree, all_blocks, lesson_map, summary_prompt_template, shifu
         )
 
-        # 生成 ask_prompt
+        # Generate ask_prompt
         _generate_ask_prompts(
             app,
             outline_tree,
@@ -945,7 +959,7 @@ def get_shifu_summary(app, shifu_id: str):
             lesson_map,
             ask_prompt_template,
         )
-
+        shifu.ask_mode = ASK_MODE_ENABLE
         db.session.commit()
         return
 
@@ -954,39 +968,39 @@ def _generate_ask_prompts(
     app, outline_tree, outline_ids, outline_summary_map, lesson_map, ask_prompt_template
 ):
     """
-    为每个节生成 ask_prompt
+    Generate ask_prompt for each section
     :param app: Flask app
-    :param outline_tree: 大纲树
-    :param outline_ids: 节ID列表
-    :param outline_summary_map: 摘要映射
-    :param lesson_map: 节映射
-    :param ask_prompt_template: ask模板
+    :param outline_tree: Outline tree
+    :param outline_ids: Section ID list
+    :param outline_summary_map: Summary mapping
+    :param lesson_map: Lesson mapping
+    :param ask_prompt_template: Ask template
     """
     for chapter in outline_tree:
         for section in chapter.children:
-            # 将 outline_summary_map 按当前节ID分割为已学习和未学习两部分
+            # Split outline_summary_map into learned and unlearned parts based on current section ID
             current_section_id = section.outline.lesson_id
 
-            # 找到当前节在 outline_ids 中的索引
+            # Find the index of current section in outline_ids
             current_index = outline_ids.index(current_section_id)
 
-            # 分割已学习和未学习的内容
+            # Split content into learned and unlearned parts
             learned_summaries = []
             unlearned_summaries = []
 
             for i, section_id in enumerate(outline_ids):
                 if section_id in outline_summary_map:
                     if i <= current_index:
-                        # 当前节及之前的所有节（已学习）
+                        # Current section and all previous sections (learned)
                         learned_summaries.append(outline_summary_map[section_id])
                     else:
-                        # 当前节之后的所有节（未学习）
+                        # All sections after current section (unlearned)
                         unlearned_summaries.append(outline_summary_map[section_id])
 
-            # 构建已学习部分的文本
+            # Build text for learned content
             learned_text = _build_summary_text(learned_summaries, is_learned=True)
 
-            # 构建未学习部分的文本
+            # Build text for unlearned content
             unlearned_text = _build_summary_text(unlearned_summaries, is_learned=False)
 
             ask_prompt = _make_ask_prompt(
@@ -1001,29 +1015,26 @@ def _generate_summaries(
     app, outline_tree, all_blocks, lesson_map, summary_prompt_template, shifu
 ) -> dict[str, dict]:
     """
-    生成所有节的摘要
+    Generate summaries for all sections
     :param app: Flask app
-    :param outline_tree: 大纲树
-    :param all_blocks: 所有块数据
-    :param lesson_map: 节映射
-    :param summary_prompt_template: 摘要模板
-    :param shifu: 课程信息
-    :return: 摘要映射
+    :param outline_tree: Outline tree
+    :param all_blocks: All block data
+    :param lesson_map: Lesson mapping
+    :param summary_prompt_template: Summary template
+    :param shifu: Course information
+    :return: Summary mapping
     """
     outline_summary_map = {}
 
-    # 获取模型配置
+    # Get model configuration
     model_name = shifu.ask_model or shifu.course_default_model
     temperature = shifu.course_default_temperature or 0.3
     if not model_name:
-        app.logger.error(
-            f"get_shifu_summary shifu_id: {shifu.course_id} model_name is empty"
-        )
-        return outline_summary_map
+        model_name = app.config.get("DEFAULT_LLM_MODEL", "")
 
     for chapter in outline_tree:
         for section in chapter.children:
-            section_blocks = all_blocks[section.outline.lesson_id]
+            section_blocks = all_blocks.get(section.outline.lesson_id, [])
             now_lesson_script_prompts = "".join(
                 block.script_prompt for block in section_blocks
             )
@@ -1038,15 +1049,14 @@ def _generate_summaries(
                 model_name=model_name,
                 temperature=temperature,
             )
-            print(f"summary: {summary}")
 
-            # 更新节信息
+            # Update section information
             lesson = lesson_map.get(section.outline.lesson_id)
             if lesson:
                 lesson.lesson_desc = summary
                 lesson.ask_mode = ASK_MODE_ENABLE
 
-                # 存储摘要信息
+                # Store summary information
                 outline_summary_map[section.outline.lesson_id] = {
                     "chapter_id": chapter.outline.lesson_id,
                     "chapter_name": chapter.outline.lesson_name,
@@ -1060,23 +1070,23 @@ def _generate_summaries(
 
 def _get_course_data(app, shifu_id: str) -> tuple[list, dict, dict]:
     """
-    获取课程相关数据
+    Get course related data
     :param app: Flask app
-    :param shifu_id: 课程ID
-    :return: (outline_ids, all_blocks, lesson_map)
+    :param shifu_id: Course ID
+    :return: (outline_tree, outline_ids, all_blocks, lesson_map)
     """
     outline_tree = get_original_outline_tree(app, shifu_id)
     outline_ids = []
 
-    # 获取所有节的ID
+    # Get all section IDs
     for chapter in outline_tree:
         for section in chapter.children:
             outline_ids.append(section.outline.lesson_id)
 
-    # 获取所有节的块
+    # Get all section blocks
     all_blocks = _get_all_publish_blocks(app, outline_ids)
 
-    # 获取所有节的数据
+    # Get all section data
     lesson_infos = (
         AILesson.query.filter(
             AILesson.lesson_id.in_(outline_ids),
@@ -1090,32 +1100,9 @@ def _get_course_data(app, shifu_id: str) -> tuple[list, dict, dict]:
     return outline_tree, outline_ids, all_blocks, lesson_map
 
 
-def _load_prompt_templates() -> tuple[str, str]:
-    """
-    加载提示词模板文件
-    :return: (summary_template, ask_template)
-    """
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-    summary_path = os.path.join(current_dir, "../../../prompts/summary.md")
-    ask_path = os.path.join(current_dir, "../../../prompts/ask.md")
-
-    summary_prompt_template = ""
-    ask_prompt_template = ""
-
-    with open(summary_path, "r", encoding="utf-8") as f:
-        summary_prompt_template = f.read()
-    with open(ask_path, "r", encoding="utf-8") as f:
-        ask_prompt_template = f.read()
-
-    return summary_prompt_template, ask_prompt_template
-
-
 def _make_ask_prompt(
     app, ask_prompt: str, learned_text: str, unlearned_text: str
 ) -> str:
-    # 替换模板中的标签
-    # result = ask_prompt.replace("{learned}", learned_text or "")
-    # result = result.replace("{unlearned}", unlearned_text or "")
     result = ask_prompt.format(
         learned=learned_text or "",
         unlearned=unlearned_text or "",
@@ -1126,7 +1113,6 @@ def _make_ask_prompt(
 
 def _get_all_publish_blocks(app, outline_ids: list[str]):
     """
-    返回 {outline_id: [block, ...]}，只包含 STATUS_PUBLISH,且每组按 script_index 升序
     Return {outline_id: [block, ...]}, only contains STATUS_PUBLISH, and each group is sorted by script_index in ascending order
     """
     query = AILessonScript.query.filter(
@@ -1135,13 +1121,11 @@ def _get_all_publish_blocks(app, outline_ids: list[str]):
         AILessonScript.script_type != SCRIPT_TYPE_SYSTEM,
     )
     blocks = query.all()
-    # 分组
-    # Group
+    # Group by lesson_id
     result = defaultdict(list)
     for block in blocks:
         result[block.lesson_id].append(block)
-    # 每组排序
-    # Sort each group
+    # Sort each group by script_index
     for k in result:
         result[k] = sorted(result[k], key=lambda b: b.script_index)
     return dict(result)
@@ -1149,14 +1133,13 @@ def _get_all_publish_blocks(app, outline_ids: list[str]):
 
 def _get_summary(app, prompt, model_name, user_id=None, temperature=0.8):
     """
-    调用大模型生成摘要
+    Call the AI model to generate summary
     :param app: Flask app
-    :param prompt: 需要摘要的 prompt
-    :param model_name: 使用的模型名称
-    :param user_id: 可选,用户ID
-    :param temperature: 可选，采样温度
-    :return: 摘要文本
-    Call the ai model associated with the course to get the summary
+    :param prompt: Prompt to be summarized
+    :param model_name: Model name to use
+    :param user_id: Optional, user ID
+    :param temperature: Optional, sampling temperature
+    :return: Summary text
     """
     # Create langfuse trace/span
     trace = langfuse_client.trace(
@@ -1199,15 +1182,15 @@ def _build_summary_text(summaries: list[dict], is_learned: bool) -> str:
         section_name = summary["section_name"]
         content = summary["content"]
 
-        # 检查是否需要添加章的标题
+        # Check if chapter title needs to be added
         if chapter_id not in chapter_titles_added:
-            # 第一次遇到这个章，添加章的标题
+            # First time encountering this chapter, add chapter title
             result_lines.append(f"### {chapter_name}")
             chapter_titles_added.add(chapter_id)
 
-        # 添加节的标题和内容
+        # Add section title and content
         result_lines.append(f"#### {section_name}")
         result_lines.append(content)
-        result_lines.append("")  # 添加空行分隔
+        result_lines.append("")  # Add empty line separator
 
     return "\n".join(result_lines)
