@@ -328,10 +328,7 @@ def modify_unit(
                         )
 
             db.session.commit()
-            # 确保 system_prompt 不为 None
-            final_system_prompt = (
-                unit_system_prompt if unit_system_prompt is not None else ""
-            )
+            final_system_prompt = unit_system_prompt or ""
 
             return OutlineDto(
                 bid=unit.lesson_id,

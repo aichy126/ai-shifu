@@ -417,12 +417,11 @@ def create_outline(
     system_prompt: str = None,
     is_hidden: bool = False,
 ) -> SimpleOutlineDto:
-    # 将字符串类型的 outline_type 转换为整数类型
-    chapter_type = LESSON_TYPE_TRIAL
-    if outline_type == UNIT_TYPE_NORMAL:
-        chapter_type = LESSON_TYPE_NORMAL
-    elif outline_type == UNIT_TYPE_TRIAL:
-        chapter_type = LESSON_TYPE_TRIAL
+    type_map = {
+        UNIT_TYPE_NORMAL: LESSON_TYPE_NORMAL,
+        UNIT_TYPE_TRIAL: LESSON_TYPE_TRIAL,
+    }
+    chapter_type = type_map.get(outline_type, LESSON_TYPE_TRIAL)
 
     if parent_id:
         return create_unit(
