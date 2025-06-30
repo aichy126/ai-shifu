@@ -15,6 +15,8 @@ from flaskr.service.study.utils import (
     make_script_dto,
     get_fmt_prompt,
 )
+from flaskr.service.profile.funcs import get_user_profiles
+from flaskr.service.llm.funcs import format_script_prompt
 from flaskr.dao import db
 from flaskr.service.study.input_funcs import (
     BreakException,
@@ -37,8 +39,8 @@ from flaskr.service.lesson.const import UI_TYPE_ASK
 def handle_input_ask(
     app: Flask,  # Flask application instance
     user_info: User,  # User information
-    lesson: AILesson,  # Course information
-    attend: AICourseLessonAttend,  # Course attendance record
+    lesson: AILesson,  # shifu information
+    attend: AICourseLessonAttend,  # shifu attendance record
     script_info: AILessonScript,  # Script information
     input: str,  # User input question
     trace: Trace,  # Trace object
@@ -46,7 +48,7 @@ def handle_input_ask(
 ):
     """
     Main function to handle user Q&A input
-    Responsible for processing user questions in the course and returning AI tutor responses
+    Responsible for processing user questions in the shifu and returning AI tutor responses
     """
 
     # Get follow-up information (including Q&A prompts and model configuration)
@@ -68,10 +70,18 @@ def handle_input_ask(
     )  # Escape braces to avoid formatting conflicts
     system_prompt = get_lesson_system(
         app, script_info.lesson_id
-    )  # Get course system prompt
-    system_message = system_prompt if system_prompt else ""
+    )  # Get shifu system prompt
 
-    # Format course Q&A prompt, insert system prompt
+    # Obtain user configuration information to replace system variables
+    user_profiles = get_user_profiles(app, user_info.user_id, attend.course_id)
+
+    # Format the system prompt and replace the variables within it
+    if system_prompt:
+        system_message = format_script_prompt(system_prompt, user_profiles)
+    else:
+        system_message = ""
+
+    # Format shifu Q&A prompt, insert system prompt
     system_message = lesson.ask_prompt.format(shifu_system_message=system_message)
     messages.append({"role": "system", "content": system_message})  # Add system message
 
@@ -89,13 +99,13 @@ def handle_input_ask(
     # Start knowledge base retrieval
     time_1 = time.time()
     retrieval_result_list = []  # Store retrieval results
-    course_id = lesson.course_id
+    shifu_id = lesson.course_id
     my_filter = ""
     limit = 3  # Maximum 3 results per knowledge base
     output_fields = ["text"]  # Only return text fields
 
     # Get course-related knowledge base list
-    kb_list = get_kb_list(app, [], [course_id])
+    kb_list = get_kb_list(app, [], [shifu_id])
 
     # Iterate through each knowledge base for retrieval
     for kb in kb_list:
@@ -130,7 +140,6 @@ def handle_input_ask(
             "content": input,
         }
     )
-
     app.logger.info(f"messages: {messages}")
 
     # Get model for follow-up Q&A
