@@ -76,10 +76,7 @@ def handle_input_ask(
     user_profiles = get_user_profiles(app, user_info.user_id, attend.course_id)
 
     # Format the system prompt and replace the variables within it
-    if system_prompt:
-        system_message = format_script_prompt(system_prompt, user_profiles)
-    else:
-        system_message = ""
+    system_message = format_script_prompt(system_prompt, user_profiles) if system_prompt else ""
 
     # Format shifu Q&A prompt, insert system prompt
     system_message = lesson.ask_prompt.format(shifu_system_message=system_message)
