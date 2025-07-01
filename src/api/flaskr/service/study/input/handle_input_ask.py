@@ -139,8 +139,6 @@ def handle_input_ask(
             "content": input,
         }
     )
-    from objprint import op
-    op(messages)
     app.logger.info(f"messages: {messages}")
 
     # Get model for follow-up Q&A
