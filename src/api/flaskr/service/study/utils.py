@@ -246,14 +246,15 @@ def extract_json(app: Flask, text: str):
 
 
 def extract_variables(template: str) -> list:
-    # 使用正则表达式匹配单层 {} 中的内容，忽略双层大括号
-    pattern = r"\{([^{}]+)\}(?!})"
+    # 匹配所有 {xxx} 或 {{xxx}}
+    pattern = r"\{{1,2}([^{}]+)\}{1,2}"
     matches = re.findall(pattern, template)
-
-    # 去重并过滤包含双引号的元素
-    variables = list(set(matches))
-    filtered_variables = [var for var in variables if '"' not in var]
-    return filtered_variables
+    # 只保留完全是变量名的内容（不包含点、逗号、冒号、引号、空格等）
+    variables = [
+        m.strip() for m in matches
+        if re.fullmatch(r"[a-zA-Z_][a-zA-Z0-9_]*", m.strip())
+    ]
+    return list(set(variables))
 
 
 def get_fmt_prompt(
