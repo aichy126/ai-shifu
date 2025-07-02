@@ -108,7 +108,6 @@ def downgrade():
         "sys_user_style": "style",
         "sys_user_background": "user_background",
         "sys_user_input": "input",
-
     }
     # profile_item parent_id = ''
     for old, new in renames.items():
