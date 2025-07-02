@@ -37,7 +37,7 @@ def handle_input_select(
                 f"Invalid JSON in script_other_conf: {other_conf}, error: {str(e)}"
             )
             btns = {}
-        conf_key = btns.get("var_name", "input")
+        conf_key = btns.get("var_name", "sys_user_input")
         profile_tosave[conf_key] = input
     for k in profile_keys:
         profile_tosave[k] = input

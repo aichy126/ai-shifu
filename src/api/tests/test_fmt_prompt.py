@@ -46,7 +46,7 @@ if __name__ == "__main__":
 def test_fmt_prompt_simple(app):
     from flaskr.service.study.utils import get_fmt_prompt
 
-    prompt = """你好， {nickname}，欢迎来到 Python 编程学习。"""
+    prompt = """你好， {sys_user_nickname}，欢迎来到 Python 编程学习。"""
     with app.app_context():
         user_id = "e54422e8fe734428b628129330e7dd2d"
         fmt_prompt = get_fmt_prompt(app, user_id, prompt)
