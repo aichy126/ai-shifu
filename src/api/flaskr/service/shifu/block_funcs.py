@@ -211,7 +211,7 @@ def save_block_list_internal(
                     )
                     app.logger.info(f"new block : {block_model.script_id}")
                     _fetch_profile_info_for_block_dto(app, block_dto)
-                    if(
+                    if (
                         block_dto.profile_info is not None
                         and block_dto.profile_info.parent_id == ""
                     ):
