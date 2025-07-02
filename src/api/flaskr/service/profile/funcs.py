@@ -65,12 +65,12 @@ class UserProfileDTO:
 def get_profile_labels(course_id: str = None):
     # language = get_current_language()
     return {
-        "sys_user_nickname": {
-            "label": _("PROFILE.NICKNAME"),
+        "nickname": {
+            "label": _("PROFILE.SYS_USER_NICKNAME"),
             "mapping": "name",
             "default": "",
         },
-        "sys_user_background": {"label": _("PROFILE.USER_BACKGROUND")},
+        "user_background": {"label": _("PROFILE.SYS_USER_BACKGROUND")},
         "sex": {
             "label": _("PROFILE.SEX"),
             "mapping": "user_sex",
@@ -106,7 +106,7 @@ def get_profile_labels(course_id: str = None):
             "default": "zh-CN",
         },
         "style": {
-            "label": _("PROFILE.STYLE"),
+            "label": _("PROFILE.SYS_USER_STYLE"),
         },
     }
 
