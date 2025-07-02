@@ -86,18 +86,43 @@ class UserProfile(db.Model):
 class ProfileItem(db.Model):
     __tablename__ = "profile_item"
     id = Column(BIGINT, primary_key=True, autoincrement=True, comment="Unique ID")
-    profile_id = Column(String(36), nullable=False, comment="Profile ID", unique=True)
-    parent_id = Column(
-        String(36), nullable=False, default="", comment="parent_id", index=True
+    profile_id = Column(String(36), nullable=False, default="", comment="Profile ID", unique=True)
+    parent_id = Column(String(36), nullable=False, comment="parent_id", index=True)
+    profile_index = Column(Integer, nullable=False, comment="Profile index")
+    profile_key = Column(String(255), nullable=False, comment="Profile key", index=True)
+    profile_type = Column(Integer, nullable=False)
+    profile_value_type = Column(Integer, nullable=False)
+    profile_show_type = Column(Integer, nullable=False)
+    profile_remark = Column(Text, nullable=False, default="", comment="Profile remark")
+    created = Column(
+        TIMESTAMP,
+        nullable=False,
+        default=func.current_timestamp(),
+        onupdate=func.current_timestamp(),
+        comment="Creation time",
     )
-    profile_index = Column(Integer, nullable=False, default=0, comment="Profile index")
-    profile_key = Column(
-        String(255), nullable=False, default="", comment="Profile key", index=True
+    updated = Column(
+        TIMESTAMP,
+        nullable=False,
+        default=func.current_timestamp(),
+        onupdate=func.current_timestamp(),
+        comment="Update time",
     )
-    profile_type = Column(Integer, nullable=False, default=0, comment="")
-    profile_value_type = Column(Integer, nullable=False, default=0, comment="")
-    profile_show_type = Column(Integer, nullable=False, default=0, comment="")
-    profile_remark = Column(Text, nullable=False, comment="Profile remark")
+    status = Column(Integer, nullable=False, comment="0 for deleted, 1 for active")
+    created_by = Column(String(36), nullable=False, comment="Created by")
+    updated_by = Column(String(36), nullable=False, comment="Updated by")
+    profile_color_setting = Column(
+        String(255), nullable=False, default="", comment="Profile color"
+    )
+    profile_check_prompt = Column(
+        Text, nullable=False, default="", comment="Profile check prompt"
+    )
+    profile_check_model = Column(
+        String(255), nullable=False, default="", comment="Profile check model"
+    )
+    profile_check_model_args = Column(
+        Text, nullable=False, default="", comment="Profile check model args"
+    )
     profile_prompt_type = Column(Integer, nullable=False, default=0, comment="")
     profile_raw_prompt = Column(
         Text, nullable=False, default="", comment="Profile raw prompt"
@@ -109,27 +134,9 @@ class ProfileItem(db.Model):
     profile_prompt_model_args = Column(
         Text, nullable=False, default="", comment="Profile prompt model args"
     )
-    profile_color_setting = Column(
-        String(255), nullable=False, default="", comment="Profile color"
-    )
     profile_script_id = Column(
         String(36), nullable=False, default="", comment="Profile script id", index=True
     )
-    created = Column(
-        TIMESTAMP, nullable=False, default=func.now(), comment="Creation time"
-    )
-    updated = Column(
-        TIMESTAMP,
-        nullable=False,
-        default=func.now(),
-        onupdate=func.now(),
-        comment="Update time",
-    )
-    status = Column(
-        Integer, nullable=False, default=0, comment="0 for deleted, 1 for active"
-    )
-    created_by = Column(String(36), nullable=False, default="", comment="Created by")
-    updated_by = Column(String(36), nullable=False, default="", comment="Updated by")
 
 
 # table to save profile item value
