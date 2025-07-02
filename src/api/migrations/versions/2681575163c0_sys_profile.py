@@ -26,32 +26,71 @@ def upgrade():
         "user_background": "sys_user_background",
         "input": "sys_user_input",
     }
-    # profile_item parent_id = ''
+    # Update profile_item profile_key field - full table replacement
     for old, new in renames.items():
         op.execute(
-            f"UPDATE profile_item SET profile_key = '{new}' WHERE parent_id = '' AND profile_key = '{old}';"
+            f"UPDATE profile_item SET profile_key = '{new}' WHERE profile_key = '{old}';"
         )
-    # user_profile - 处理所有 profile_type 的记录
-    for old, new in renames.items():
-        op.execute(
-            f"UPDATE user_profile SET profile_key = '{new}' WHERE profile_key = '{old}';"
-        )
-    # profile_item parent_id != ''
-    for old, new in renames.items():
-        op.execute(
-            f"UPDATE profile_item SET profile_key = '{new}' WHERE parent_id != '' AND profile_key = '{old}';"
-        )
-    # ai_lesson_script
+    # Update profile_item profile_prompt field - support multiple formats
     connection = op.get_bind()
-    batch_size = 5000
-    # ai_lesson_script 分批处理（优化：全表遍历，内存判断，script_prompt 用正则）
-    # 预编译所有正则表达式
+    # Pre-compile all regex patterns
     patterns = {}
     for old, new in renames.items():
         patterns[old] = {
             "braces": re.compile(rf"\{{{old}\}}"),
             "parens": re.compile(rf"\({old}\)"),
-            "json": re.compile(rf'\{{{{\"{old}\":\s*"([^"]*)"}}}}'),
+            "json": re.compile(rf'\{{{{\"{old}\":\s*"([^\"]*)"}}}}'),
+            "new": new,
+        }
+
+    # Process all profile_item profile_prompt fields
+    results = connection.execute(
+        text(
+            "SELECT id, profile_prompt FROM profile_item WHERE profile_prompt IS NOT NULL"
+        )
+    ).fetchall()
+
+    for row in results:
+        profile_prompt = row[1]
+        if not profile_prompt:
+            continue
+
+        new_profile_prompt = profile_prompt
+        # Replace variable names in multiple formats: {old}, (old), and {{"old": "xxx"}}
+        for old, pattern_dict in patterns.items():
+            new_profile_prompt = pattern_dict["braces"].sub(
+                f"{{{pattern_dict['new']}}}", new_profile_prompt
+            )
+            new_profile_prompt = pattern_dict["parens"].sub(
+                f"({pattern_dict['new']})", new_profile_prompt
+            )
+            new_profile_prompt = pattern_dict["json"].sub(
+                f'{{{{"{pattern_dict["new"]}": "\\1"}}}}', new_profile_prompt
+            )
+
+        if new_profile_prompt != profile_prompt:
+            connection.execute(
+                text(
+                    "UPDATE profile_item SET profile_prompt = :new_prompt WHERE id = :id"
+                ),
+                {"new_prompt": new_profile_prompt, "id": row[0]},
+            )
+
+    # Update user_profile profile_key field - all profile_type records
+    for old, new in renames.items():
+        op.execute(
+            f"UPDATE user_profile SET profile_key = '{new}' WHERE profile_key = '{old}';"
+        )
+    # Update ai_lesson_script fields - batch processing for large dataset
+    connection = op.get_bind()
+    batch_size = 5000
+    # Pre-compile all regex patterns for ai_lesson_script
+    patterns = {}
+    for old, new in renames.items():
+        patterns[old] = {
+            "braces": re.compile(rf"\{{{old}\}}"),
+            "parens": re.compile(rf"\({old}\)"),
+            "json": re.compile(rf'\{{{{\"{old}\":\s*"([^\"]*)"}}}}'),
             "brackets": re.compile(rf"\[{old}\]"),
             "new": new,
         }
@@ -70,17 +109,17 @@ def upgrade():
         if not results:
             break
         for row in results:
-            # 初始化新值
-            new_script_prompt = row[3]  # script_prompt 是第4个字段
-            new_prompt = row[1]  # script_check_prompt 是第2个字段
-            new_profile = row[2]  # script_ui_profile 是第3个字段
-            new_script_profile = row[4]  # script_profile 是第5个字段
+            # Initialize new values
+            new_script_prompt = row[3]  # script_prompt is the 4th field
+            new_prompt = row[1]  # script_check_prompt is the 2nd field
+            new_profile = row[2]  # script_ui_profile is the 3rd field
+            new_script_profile = row[4]  # script_profile is the 5th field
 
-            # 对每个变量名进行替换
+            # Replace variable names for each pattern
             for old, pattern_dict in patterns.items():
                 new = pattern_dict["new"]
 
-                # script_prompt 只替换 {old} 为 {new}
+                # script_prompt: only replace {old} with {new}
                 if new_script_prompt and pattern_dict["braces"].search(
                     new_script_prompt
                 ):
@@ -88,7 +127,7 @@ def upgrade():
                         f"{{{new}}}", new_script_prompt
                     )
 
-                # script_check_prompt 替换 {old}、(old) 和 {{"old": "xxx"}}
+                # script_check_prompt: replace {old}, (old), and {{"old": "xxx"}}
                 if new_prompt:
                     new_prompt = pattern_dict["braces"].sub(f"{{{new}}}", new_prompt)
                     new_prompt = pattern_dict["parens"].sub(f"({new})", new_prompt)
@@ -96,17 +135,17 @@ def upgrade():
                         f'{{{{"{new}": "\\1"}}}}', new_prompt
                     )
 
-                # script_ui_profile 替换 [old] 格式
+                # script_ui_profile: replace [old] format
                 if new_profile:
                     new_profile = pattern_dict["brackets"].sub(f"[{new}]", new_profile)
 
-                # script_profile 替换 [old] 格式
+                # script_profile: replace [old] format
                 if new_script_profile:
                     new_script_profile = pattern_dict["brackets"].sub(
                         f"[{new}]", new_script_profile
                     )
 
-            # 如果有变化就更新
+            # Update if any changes detected
             if (
                 new_prompt != row[1]
                 or new_profile != row[2]
@@ -127,7 +166,7 @@ def upgrade():
                         "new_profile": new_profile,
                         "new_script_prompt": new_script_prompt,
                         "new_script_profile": new_script_profile,
-                        "id": row[0],  # id 是第1个字段
+                        "id": row[0],  # id is the 1st field
                     },
                 )
         if len(results) < batch_size:
@@ -143,32 +182,71 @@ def downgrade():
         "sys_user_background": "user_background",
         "sys_user_input": "input",
     }
-    # profile_item parent_id = ''
+    # Revert profile_item profile_key field - full table replacement
     for old, new in renames.items():
         op.execute(
-            f"UPDATE profile_item SET profile_key = '{new}' WHERE parent_id = '' AND profile_key = '{old}';"
+            f"UPDATE profile_item SET profile_key = '{new}' WHERE profile_key = '{old}';"
         )
-    # user_profile - 处理所有 profile_type 的记录
-    for old, new in renames.items():
-        op.execute(
-            f"UPDATE user_profile SET profile_key = '{new}' WHERE profile_key = '{old}';"
-        )
-    # profile_item parent_id != ''
-    for old, new in renames.items():
-        op.execute(
-            f"UPDATE profile_item SET profile_key = '{new}' WHERE parent_id != '' AND profile_key = '{old}';"
-        )
-    # ai_lesson_script
+    # Revert profile_item profile_prompt field - support multiple formats
     connection = op.get_bind()
-    batch_size = 5000
-    # ai_lesson_script 分批处理（回滚）
-    # 预编译所有正则表达式
+    # Pre-compile all regex patterns
     patterns = {}
     for old, new in renames.items():
         patterns[old] = {
             "braces": re.compile(rf"\{{{old}\}}"),
             "parens": re.compile(rf"\({old}\)"),
-            "json": re.compile(rf'\{{{{\"{old}\":\s*"([^"]*)"}}}}'),
+            "json": re.compile(rf'\{{{{\"{old}\":\s*"([^\"]*)"}}}}'),
+            "new": new,
+        }
+
+    # Process all profile_item profile_prompt fields
+    results = connection.execute(
+        text(
+            "SELECT id, profile_prompt FROM profile_item WHERE profile_prompt IS NOT NULL"
+        )
+    ).fetchall()
+
+    for row in results:
+        profile_prompt = row[1]
+        if not profile_prompt:
+            continue
+
+        new_profile_prompt = profile_prompt
+        # Replace variable names in multiple formats: {old}, (old), and {{"old": "xxx"}}
+        for old, pattern_dict in patterns.items():
+            new_profile_prompt = pattern_dict["braces"].sub(
+                f"{{{pattern_dict['new']}}}", new_profile_prompt
+            )
+            new_profile_prompt = pattern_dict["parens"].sub(
+                f"({pattern_dict['new']})", new_profile_prompt
+            )
+            new_profile_prompt = pattern_dict["json"].sub(
+                f'{{{{"{pattern_dict["new"]}": "\\1"}}}}', new_profile_prompt
+            )
+
+        if new_profile_prompt != profile_prompt:
+            connection.execute(
+                text(
+                    "UPDATE profile_item SET profile_prompt = :new_prompt WHERE id = :id"
+                ),
+                {"new_prompt": new_profile_prompt, "id": row[0]},
+            )
+
+    # Revert user_profile profile_key field - all profile_type records
+    for old, new in renames.items():
+        op.execute(
+            f"UPDATE user_profile SET profile_key = '{new}' WHERE profile_key = '{old}';"
+        )
+    # Revert ai_lesson_script fields - batch processing for large dataset
+    connection = op.get_bind()
+    batch_size = 5000
+    # Pre-compile all regex patterns for ai_lesson_script
+    patterns = {}
+    for old, new in renames.items():
+        patterns[old] = {
+            "braces": re.compile(rf"\{{{old}\}}"),
+            "parens": re.compile(rf"\({old}\)"),
+            "json": re.compile(rf'\{{{{\"{old}\":\s*"([^\"]*)"}}}}'),
             "brackets": re.compile(rf"\[{old}\]"),
             "new": new,
         }
@@ -187,17 +265,17 @@ def downgrade():
         if not results:
             break
         for row in results:
-            # 初始化新值
-            new_script_prompt = row[3]  # script_prompt 是第4个字段
-            new_prompt = row[1]  # script_check_prompt 是第2个字段
-            new_profile = row[2]  # script_ui_profile 是第3个字段
-            new_script_profile = row[4]  # script_profile 是第5个字段
+            # Initialize new values
+            new_script_prompt = row[3]  # script_prompt is the 4th field
+            new_prompt = row[1]  # script_check_prompt is the 2nd field
+            new_profile = row[2]  # script_ui_profile is the 3rd field
+            new_script_profile = row[4]  # script_profile is the 5th field
 
-            # 对每个变量名进行替换
+            # Replace variable names for each pattern
             for old, pattern_dict in patterns.items():
                 new = pattern_dict["new"]
 
-                # script_prompt 只替换 {old} 为 {new}
+                # script_prompt: only replace {old} with {new}
                 if new_script_prompt and pattern_dict["braces"].search(
                     new_script_prompt
                 ):
@@ -205,7 +283,7 @@ def downgrade():
                         f"{{{new}}}", new_script_prompt
                     )
 
-                # script_check_prompt 替换 {old}、(old) 和 {{"old": "xxx"}}
+                # script_check_prompt: replace {old}, (old), and {{"old": "xxx"}}
                 if new_prompt:
                     new_prompt = pattern_dict["braces"].sub(f"{{{new}}}", new_prompt)
                     new_prompt = pattern_dict["parens"].sub(f"({new})", new_prompt)
@@ -213,17 +291,17 @@ def downgrade():
                         f'{{{{"{new}": "\\1"}}}}', new_prompt
                     )
 
-                # script_ui_profile 替换 [old] 格式
+                # script_ui_profile: replace [old] format
                 if new_profile:
                     new_profile = pattern_dict["brackets"].sub(f"[{new}]", new_profile)
 
-                # script_profile 替换 [old] 格式
+                # script_profile: replace [old] format
                 if new_script_profile:
                     new_script_profile = pattern_dict["brackets"].sub(
                         f"[{new}]", new_script_profile
                     )
 
-            # 如果有变化就更新
+            # Update if any changes detected
             if (
                 new_prompt != row[1]
                 or new_profile != row[2]
@@ -244,7 +322,7 @@ def downgrade():
                         "new_profile": new_profile,
                         "new_script_prompt": new_script_prompt,
                         "new_script_profile": new_script_profile,
-                        "id": row[0],  # id 是第1个字段
+                        "id": row[0],  # id is the 1st field
                     },
                 )
         if len(results) < batch_size:
