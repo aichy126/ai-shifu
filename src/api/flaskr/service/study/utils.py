@@ -260,6 +260,7 @@ def extract_variables(template: str) -> list:
 def safe_format_template(template: str, variables: dict) -> str:
     # Replace {xxx} or {{xxx}} with values from variables dict, keep original if not found
     pattern = re.compile(r"(\{{1,2})([^{}]+)(\}{1,2})")
+
     def replacer(match):
         left, var, right = match.groups()
         var_name = var.strip()
@@ -269,6 +270,7 @@ def safe_format_template(template: str, variables: dict) -> str:
                 return str(variables[var_name])
         # Otherwise, keep the original
         return match.group(0)
+
     return pattern.sub(replacer, template)
 
 
