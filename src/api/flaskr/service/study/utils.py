@@ -245,7 +245,7 @@ def extract_json(app: Flask, text: str):
     return {}
 
 
-def extract_variables(template: str) -> list:
+def extract_variables_bk(template: str) -> list:
     # 匹配所有 {xxx} 或 {{xxx}}
     pattern = r"\{{1,2}([^{}]+)\}{1,2}"
     matches = re.findall(pattern, template)
@@ -256,6 +256,14 @@ def extract_variables(template: str) -> list:
     ]
     return list(set(variables))
 
+def extract_variables(template: str) -> list:
+    # 使用正则表达式匹配单层 {} 中的内容，忽略双层大括号
+    pattern = r"\{([^{}]+)\}(?!})"
+    matches = re.findall(pattern, template)
+    # 去重并过滤包含双引号的元素
+    variables = list(set(matches))
+    filtered_variables = [var for var in variables if '"' not in var]
+    return filtered_variables
 
 def get_fmt_prompt(
     app: Flask,
