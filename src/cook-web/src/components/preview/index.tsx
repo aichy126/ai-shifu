@@ -24,10 +24,10 @@ const PreviewSettingsModal = () => {
     const [autoSkipEmptyFields, setAutoSkipEmptyFields] = useState(false);
 
     const handleStartPreview = async () => {
-        await actions.saveBlocks(currentShifu?.shifu_id || '');
+        await actions.saveBlocks(currentShifu?.bid || '');
         // Handle the start preview action
         const result = await api.previewShifu({
-            "shifu_id": currentShifu?.shifu_id || '',
+            "shifu_bid": currentShifu?.bid || '',
             "skip": autoSkipEmptyFields,
             "variables": {}
         });
@@ -70,7 +70,7 @@ const PreviewSettingsModal = () => {
 
                 <DialogFooter>
                     <Button
-                        className="w-full bg-purple-600 hover:bg-purple-700"
+                        className="w-full bg-primary hover:bg-primary-lighter"
                         onClick={handleStartPreview}
                     >
                         {t('preview.start-preview')}

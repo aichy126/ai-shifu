@@ -1,28 +1,33 @@
 from ...dao import db
 from ..lesson.models import AILesson
-from .dtos import ChapterDto
+from .dtos import ChapterDto, SimpleOutlineDto
 from sqlalchemy import func
 from ...util.uuid import generate_id
 from ..common.models import raise_error
 from ..lesson.const import (
     LESSON_TYPE_TRIAL,
+    LESSON_TYPE_NORMAL,
     STATUS_PUBLISH,
     STATUS_DRAFT,
     STATUS_HISTORY,
 )
 from datetime import datetime
-from .dtos import SimpleOutlineDto
 from .utils import (
     get_existing_outlines,
     get_existing_blocks,
     change_outline_status_to_history,
-    change_block_status_to_history,
+    mark_outline_to_delete,
+    mark_block_to_delete,
     get_original_outline_tree,
     OutlineTreeNode,
     reorder_outline_tree_and_save,
 )
 import queue
 from flaskr.service.check_risk.funcs import check_text_with_risk_control
+from .unit_funcs import create_unit
+from .dtos import ReorderOutlineItemDto
+from .adapter import convert_outline_to_reorder_outline_item_dto
+from .const import UNIT_TYPE_TRIAL, UNIT_TYPE_NORMAL
 
 
 # get chapter list
@@ -114,12 +119,7 @@ def create_chapter(
                 db.session.add(new_outline)
 
         db.session.commit()
-        return ChapterDto(
-            chapter.lesson_id,
-            chapter.lesson_name,
-            chapter.lesson_desc,
-            chapter.lesson_type,
-        )
+        return SimpleOutlineDto(OutlineTreeNode(outline=chapter))
 
 
 # modify chapter
@@ -163,7 +163,7 @@ def modify_chapter(
                     {AILesson.lesson_index: AILesson.lesson_index + 1},
                     synchronize_session=False,
                 )
-            if new_chapter != chapter:
+            if not new_chapter.eq(chapter):
                 change_outline_status_to_history(chapter, user_id, time)
                 db.session.add(new_chapter)
             existing_chapter_count = AILesson.query.filter(
@@ -207,7 +207,7 @@ def delete_chapter(app, user_id: str, chapter_id: str):
         )
         outline_ids = []
         if chapter:
-            change_outline_status_to_history(chapter, user_id, time)
+            mark_outline_to_delete(chapter, user_id, time)
             outline_ids.append(chapter.lesson_id)
             outlines = get_existing_outlines(app, chapter.course_id)
             for outline in outlines:
@@ -217,9 +217,10 @@ def delete_chapter(app, user_id: str, chapter_id: str):
                         app.logger.info(
                             f"delete outline: {outline.lesson_id} {outline.lesson_no} {outline.lesson_name}"
                         )
-                        change_outline_status_to_history(outline, user_id, time)
+                        mark_outline_to_delete(outline, user_id, time)
                         outline_ids.append(outline.lesson_id)
                         continue
+                    # reorder the outline
                     change_outline_status_to_history(outline, user_id, time)
                     new_outline = outline.clone()
                     new_outline.status = STATUS_DRAFT
@@ -238,7 +239,7 @@ def delete_chapter(app, user_id: str, chapter_id: str):
                     db.session.add(new_outline)
             blocks = get_existing_blocks(app, outline_ids)
             for block in blocks:
-                change_block_status_to_history(block, user_id, time)
+                mark_block_to_delete(block, user_id, time)
             db.session.commit()
             return True
         raise_error("SHIFU.CHAPTER_NOT_FOUND")
@@ -402,3 +403,90 @@ def update_children_lesson_no(node, parent_lesson_no, start_index, user_id, time
         db.session.add(new_child_outline)
         child.outline = new_child_outline
         update_children_lesson_no(child, child.outline.lesson_no, 0, user_id, time)
+
+
+def create_outline(
+    app,
+    user_id: str,
+    shifu_id: str,
+    parent_id: str,
+    outline_name: str,
+    outline_description: str,
+    outline_index: int = 0,
+    outline_type: str = UNIT_TYPE_TRIAL,
+    system_prompt: str = None,
+    is_hidden: bool = False,
+) -> SimpleOutlineDto:
+    type_map = {
+        UNIT_TYPE_NORMAL: LESSON_TYPE_NORMAL,
+        UNIT_TYPE_TRIAL: LESSON_TYPE_TRIAL,
+    }
+    chapter_type = type_map.get(outline_type, LESSON_TYPE_TRIAL)
+
+    if parent_id:
+        return create_unit(
+            app=app,
+            user_id=user_id,
+            shifu_id=shifu_id,
+            parent_id=parent_id,
+            unit_name=outline_name,
+            unit_description=outline_description,
+            unit_index=outline_index,
+            unit_type=outline_type,
+            unit_system_prompt=system_prompt,
+            unit_is_hidden=is_hidden,
+        )
+    else:
+        return create_chapter(
+            app=app,
+            user_id=user_id,
+            shifu_id=shifu_id,
+            chapter_name=outline_name,
+            chapter_description=outline_description,
+            chapter_index=outline_index,
+            chapter_type=chapter_type,
+        )
+
+
+def convert_reorder_outline_item_dto_to_outline_tree(
+    outlines: list[ReorderOutlineItemDto], existing_outlines_map: dict[str, AILesson]
+):
+    ret = []
+    for outline in outlines:
+        if outline.bid in existing_outlines_map:
+            existing_outline = existing_outlines_map[outline.bid]
+            node = OutlineTreeNode(existing_outline)
+            if outline.children:
+                outline_children = convert_reorder_outline_item_dto_to_outline_tree(
+                    outline.children, existing_outlines_map
+                )
+                for child in outline_children:
+                    node.add_child(child)
+            ret.append(node)
+    return ret
+
+
+def reorder_outline_tree(
+    app, user_id: str, shifu_id: str, outlines: list[ReorderOutlineItemDto]
+):
+    with app.app_context():
+        app.logger.info(
+            f"reorder outline tree, user_id: {user_id}, shifu_id: {shifu_id}, outlines: {outlines}"
+        )
+        existing_outlines = get_existing_outlines(app, shifu_id)
+        new_outline_tree = convert_outline_to_reorder_outline_item_dto(outlines)
+        app.logger.info(f"new_outline_tree: {new_outline_tree}")
+        existing_outlines_map = {o.lesson_id: o for o in existing_outlines}
+        to_save_outlines = convert_reorder_outline_item_dto_to_outline_tree(
+            new_outline_tree, existing_outlines_map
+        )
+        app.logger.info(f"to_save_outlines: {to_save_outlines}")
+        root = OutlineTreeNode(None)
+        for outline in to_save_outlines:
+            app.logger.info(
+                f"add outline: {outline.outline.lesson_id} {outline.outline.lesson_no}"
+            )
+            root.add_child(outline)
+        reorder_outline_tree_and_save(app, root, user_id, datetime.now())
+        db.session.commit()
+        return True

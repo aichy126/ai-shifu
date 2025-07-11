@@ -17,13 +17,6 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from "@/components/ui/select";
-import {
     Form,
     FormControl,
     FormField,
@@ -34,19 +27,19 @@ import {
 import { useTranslation } from 'react-i18next'
 import api from "@/api";
 import { getSiteHost } from "@/config/runtime-config";
-import { useShifu } from "@/store";
+import ModelList from "@/components/model-list";
 
 interface Shifu {
-    shifu_description: string;
-    shifu_id: string;
-    shifu_keywords: string[];
-    shifu_model: string;
-    shifu_name: string;
-    shifu_preview_url: string;
-    shifu_price: number;
-    shifu_avatar: string;
-    shifu_url: string;
-    shifu_temperature: number;
+    description: string;
+    bid: string;
+    keywords: string[];
+    model: string;
+    name: string;
+    preview_url: string;
+    price: number;
+    avatar: string;
+    url: string;
+    temperature: number;
 }
 
 
@@ -60,7 +53,6 @@ export default function ShifuSettingDialog({ shifuId, onSave }: { shifuId: strin
     const [uploadProgress, setUploadProgress] = useState(0);
     const [isUploading, setIsUploading] = useState(false);
     const [uploadedImageUrl, setUploadedImageUrl] = useState("");
-    const { models } = useShifu();
     const [copying, setCopying] = useState({
         previewUrl: false,
         url: false
@@ -78,7 +70,7 @@ export default function ShifuSettingDialog({ shifuId, onSave }: { shifuId: strin
         description: z.string()
             .min(1, t('shifu-setting.shifu-description-cannot-be-empty'))
             .max(300, t('shifu-setting.shifu-description-cannot-exceed-300-characters')),
-        model: z.string().min(1, t('shifu-setting.please-select-model')),
+        model: z.string(),
         price: z.string()
             .min(1, t('shifu-setting.shifu-price-cannot-be-empty'))
             .regex(/^\d+(\.\d{1,2})?$/, t('shifu-setting.shifu-price-must-be-valid-number-format')),
@@ -184,14 +176,14 @@ export default function ShifuSettingDialog({ shifuId, onSave }: { shifuId: strin
     // Handle form submission
     const onSubmit = async (data) => {
         await api.saveShifuDetail({
-            "shifu_description": data.description,
-            "shifu_id": shifuId,
-            "shifu_keywords": keywords,
-            "shifu_model": data.model,
-            "shifu_name": data.name,
-            "shifu_price": Number(data.price),
-            "shifu_avatar": uploadedImageUrl,
-            "shifu_temperature": Number(data.temperature)
+            "description": data.description,
+            "shifu_bid": shifuId,
+            "keywords": keywords,
+            "model": data.model,
+            "name": data.name,
+            "price": Number(data.price),
+            "avatar": uploadedImageUrl,
+            "temperature": Number(data.temperature)
         })
 
         if (onSave) {
@@ -201,21 +193,21 @@ export default function ShifuSettingDialog({ shifuId, onSave }: { shifuId: strin
     };
     const init = async () => {
         const result = await api.getShifuDetail({
-            shifu_id: shifuId
+            shifu_bid: shifuId
         }) as Shifu;
 
         if (result) {
             form.reset({
-                name: result.shifu_name,
-                description: result.shifu_description,
-                price: result.shifu_price + '',
-                model: result.shifu_model,
-                previewUrl: result.shifu_preview_url,
-                url: result.shifu_url,
-                temperature: result.shifu_temperature + ''
+                name: result.name,
+                description: result.description,
+                price: result.price + '',
+                model: result.model || '',
+                previewUrl: result.preview_url,
+                url: result.url,
+                temperature: result.temperature + ''
             })
-            setKeywords(result.shifu_keywords)
-            setUploadedImageUrl(result.shifu_avatar || "")
+            setKeywords(result.keywords)
+            setUploadedImageUrl(result.avatar || "")
         }
     }
     useEffect(() => {
@@ -376,7 +368,7 @@ export default function ShifuSettingDialog({ shifuId, onSave }: { shifuId: strin
                                 <div className="col-span-3">
                                     {uploadedImageUrl ? (
                                         <div className="mb-2">
-                                            <div className="relative w-24 l h-24 bg-gray-100 rounded-lg overflow-hidden">
+                                            <div className="relative w-24 h-24 bg-gray-100 rounded-lg overflow-hidden">
                                                 <img
                                                     src={uploadedImageUrl}
                                                     alt={t('shifu-setting.shifu-avatar')}
@@ -443,25 +435,14 @@ export default function ShifuSettingDialog({ shifuId, onSave }: { shifuId: strin
                                 name="model"
                                 render={({ field }) => (
                                     <FormItem className="grid grid-cols-4 items-center gap-4">
-                                        <FormLabel className="text-right text-sm">{t('shifu-setting.select-model')}</FormLabel>
+                                        <FormLabel className="text-right text-sm">{t('common.select-model')}</FormLabel>
                                         <div className="col-span-3">
-                                            <Select
-                                                onValueChange={field.onChange}
-                                                defaultValue={field.value}
-                                            >
-                                                <FormControl>
-                                                    <SelectTrigger>
-                                                        <SelectValue placeholder={t('shifu-setting.select-model')} />
-                                                    </SelectTrigger>
-                                                </FormControl>
-                                                <SelectContent>
-                                                    {
-                                                        models.map((item, i) => {
-                                                            return <SelectItem key={i} value={item}>{item}</SelectItem>
-                                                        })
-                                                    }
-                                                </SelectContent>
-                                            </Select>
+                                            <FormControl>
+                                                <ModelList
+                                                    value={field.value}
+                                                    onChange={field.onChange}
+                                                />
+                                            </FormControl>
                                             <FormMessage />
                                         </div>
                                     </FormItem>
@@ -505,7 +486,7 @@ export default function ShifuSettingDialog({ shifuId, onSave }: { shifuId: strin
                             </Button>
                             <Button
                                 type="submit"
-                                className="bg-purple-600 hover:bg-purple-700 text-white"
+                                className="bg-primary hover:bg-primary-lighter text-white"
                                 onClick={() => {
 
                                     onSubmit(form.getValues())

@@ -7,48 +7,38 @@ import {
   AIBlockProperties,
   SolidContentBlockProperties,
   SaveBlockListResult,
-  ApiResponse
+  ApiResponse,
+  ReorderOutlineItemDto,
+  BlockDTO,
+  BlockType,
 } from '../types/shifu'
 import api from '@/api'
 import { useContentTypes } from '@/components/render-block'
-import { useUITypes } from '@/components/render-ui'
+// import { useUITypes } from '@/components/render-ui'
 import { debounce } from 'lodash'
 import {
   createContext,
   ReactNode,
   useContext,
   useState,
-  useCallback
+  useCallback,
+  useRef
 } from 'react'
 
 const ShifuContext = createContext<ShifuContextType | undefined>(undefined)
 
 const buildBlockListWithAllInfo = (
   blocks: Block[],
-  blockContentTypes: Record<string, any>,
-  blockContentProperties: Record<string, any>,
-  blockUITypes: Record<string, any>,
-  blockUIProperties: Record<string, any>
+  blockTypes: Record<string, any>,
+  blockProperties: Record<string, BlockDTO>,
 ) => {
-  const list = blocks.map((block: Block, index) => {
+  const list = blocks.map((block: Block) => {
     return {
-      properties: {
-        block_id: block.properties.block_id,
-        block_no: '',
-        block_name: '',
-        block_desc: '',
-        block_type: 101,
-        block_index: index,
-        block_content: {
-          type: blockContentTypes[block.properties.block_id],
-          properties: blockContentProperties[block.properties.block_id]
-        },
-        block_ui: {
-          type: blockUITypes[block.properties.block_id],
-          properties: blockUIProperties[block.properties.block_id]
-        }
-      },
-      type: 'block'
+      bid: block.bid,
+      type: blockTypes[block.bid] ?? blockProperties[block.bid].type ,
+      properties: blockProperties[block.bid].properties,
+      variable_bids: blockProperties[block.bid].variable_bids,
+      resource_bids: blockProperties[block.bid].resource_bids
     }
   })
   return list
@@ -66,17 +56,22 @@ export const ShifuProvider: React.FC<{ children: ReactNode }> = ({
   const [focusId, setFocusId] = useState('')
   const [focusValue, setFocusValue] = useState('')
   const [cataData, setCataData] = useState<{ [x: string]: Outline }>({})
-  const [blocks, setBlocks] = useState<Block[]>([])
+  const [blocks, setBlocks] = useState<BlockDTO[]>([])
+  const [blockProperties, setBlockProperties] = useState<{
+    [x: string]: BlockDTO
+  }>({})
   const [blockContentProperties, setBlockContentProperties] = useState<{
     [x: string]: any
   }>({})
+  const [blockTypes, setBlockTypes] = useState<{
+    [x: string]: BlockType
+  }>({})
+  const [blockUITypes, setBlockUITypes] = useState<{
+    [x: string]: BlockType
+  }>({})
   const [blockContentTypes, setBlockContentTypes] = useState<{
-    [x: string]: string
+    [x: string]: BlockType
   }>({})
-  const [blockUIProperties, setBlockUIProperties] = useState<{
-    [x: string]: any
-  }>({})
-  const [blockUITypes, setBlockUITypes] = useState<{ [x: string]: string }>({})
   const [blockContentState, setBlockContentState] = useState<{
     [x: string]: 'edit' | 'preview'
   }>({})
@@ -90,15 +85,17 @@ export const ShifuProvider: React.FC<{ children: ReactNode }> = ({
   const [models, setModels] = useState<string[]>([])
 
   // 确保在客户端环境下获取 UI 类型和内容类型
-  const UITypes = useUITypes()
+  // const UITypes = useUITypes()
   const ContentTypes = useContentTypes()
 
   const loadShifu = async (shifuId: string) => {
+    setBlockUITypes({})
+    setBlockContentTypes({})
     try {
       setIsLoading(true)
       setError(null)
-      const shifu = await api.getShifuInfo({
-        shifu_id: shifuId
+      const shifu = await api.getShifuDetail({
+        shifu_bid: shifuId
       })
       setCurrentShifu(shifu)
     } catch (error) {
@@ -113,7 +110,8 @@ export const ShifuProvider: React.FC<{ children: ReactNode }> = ({
     const processItem = (item: any, parentId = '', depth = 0) => {
       result[item.id] = {
         ...cataData[item.id],
-        parent_id: parentId,
+        parent_bid: parentId,
+        parentId: parentId,
         name: item.name,
         depth: depth,
         status: 'edit'
@@ -121,7 +119,7 @@ export const ShifuProvider: React.FC<{ children: ReactNode }> = ({
 
       if (item.children) {
         item.children.forEach((child: any) => {
-          processItem(child, item.id, depth + 1)
+          processItem(child, item.bid, depth + 1)
         })
       }
     }
@@ -157,8 +155,9 @@ export const ShifuProvider: React.FC<{ children: ReactNode }> = ({
     setIsSaving(true)
     setError(null)
     try {
-      if (outline.parentId) {
-        const parent = findNode(outline.parentId || '')
+      console.log('removeOutline', outline)
+      if (outline.parent_bid) {
+        const parent = findNode(outline.parent_bid || '')
         if (parent) {
           parent.children = parent.children?.filter(
             (child: any) => child.id !== outline.id
@@ -174,17 +173,10 @@ export const ShifuProvider: React.FC<{ children: ReactNode }> = ({
         if (outline.id == 'new_chapter') {
           return
         }
-        if (outline.depth == 0) {
-          await api.deleteChapter({
-            chapter_id: outline.id,
-            shifu_id: currentShifu?.shifu_id || ''
-          })
-        } else if (outline.depth == 1) {
-          await api.deleteUnit({
-            unit_id: outline.id,
-            shifu_id: currentShifu?.shifu_id || ''
-          })
-        }
+        await api.deleteOutline({
+          shifu_bid: currentShifu?.bid || '',
+          outline_bid: outline.id
+        })
       } else {
         const list = chapters.filter((child: any) => child.id !== outline.id)
         setChapters([...list])
@@ -197,9 +189,9 @@ export const ShifuProvider: React.FC<{ children: ReactNode }> = ({
         if (outline.id == 'new_chapter') {
           return
         }
-        await api.deleteChapter({
-          chapter_id: outline.id,
-          shifu_id: currentShifu?.shifu_id || ''
+        await api.deleteOutline({
+          shifu_bid: currentShifu?.bid || '',
+          outline_bid: outline.id
         })
       }
       setLastSaveTime(new Date())
@@ -218,30 +210,36 @@ export const ShifuProvider: React.FC<{ children: ReactNode }> = ({
     })
     setProfileItemDefinations(list)
   }
+
+
+  const remapOutlineTree = (items: any): Outline[] => {
+    return items.map((item: any) => {
+      return {
+        id: item.bid,
+        name: item.name,
+        bid: item.bid,
+        position: item.position,
+        children: remapOutlineTree(item.children)
+      }
+    })
+  }
+
   const loadChapters = async (shifuId: string) => {
     try {
       setIsLoading(true)
       setError(null)
-      const shifuInfo = await api.getShifuInfo({ shifu_id: shifuId })
+      const shifuInfo = await api.getShifuDetail({ shifu_bid: shifuId })
       setCurrentShifu(shifuInfo)
-      const chaptersData = await api.getShifuOutlineTree({ shifu_id: shifuId })
+      const chaptersData = await api.getShifuOutlineTree({ shifu_bid: shifuId })
 
-      const list = chaptersData.map((chapter: any) => {
-        return {
-          id: chapter.id,
-          name: chapter.name,
-          children: chapter.children,
-          no: chapter.no
-        }
-      })
+      const list = remapOutlineTree(chaptersData)
       if (list.length > 0) {
         if (list[0].children && list[0].children.length > 0) {
-          // setCurrentOutline(list[0].children[0].id);
           setCurrentNode({
             ...list[0].children[0],
             depth: 1
           })
-          await loadBlocks(list[0].children[0].id, shifuId)
+          await loadBlocks(list[0].children[0].bid, shifuId)
         }
       }
       setChapters(list)
@@ -254,65 +252,53 @@ export const ShifuProvider: React.FC<{ children: ReactNode }> = ({
       setIsLoading(false)
     }
   }
-  const initBlockContentTypes = async (list: Block[]) => {
+
+  const initBlockTypes = async (list: Block[]) => {
     const types = list.reduce((prev: any, cur: Block) => {
-      prev[cur.properties.block_id] = cur.properties.block_content.type
+      prev[cur.bid] = cur.type
       return prev
     }, {})
-    setBlockContentTypes(types)
+    setBlockTypes(types)
   }
 
-  const initBlockContentProperties = async (list: Block[]) => {
+  const initBlockProperties = async (list: Block[]) => {
     const properties = list.reduce((prev: any, cur: Block) => {
       return {
         ...prev,
-        [cur.properties.block_id]: cur.properties.block_content.properties
+        [cur.bid]: cur
       }
     }, {})
-    setBlockContentProperties(properties)
-  }
-  const initBlockUITypes = async (list: Block[]) => {
-    const types = list.reduce((prev: any, cur: Block) => {
-      prev[cur.properties.block_id] = cur.properties.block_ui.type
-      return prev
-    }, {})
-    setBlockUITypes(types)
+    setBlockProperties(properties)
   }
 
-  const initBlockUIProperties = async (list: Block[]) => {
-    const properties = list.reduce((prev: any, cur: Block) => {
-      return {
-        ...prev,
-        [cur.properties.block_id]: cur.properties.block_ui.properties
-      }
-    }, {})
-    setBlockUIProperties(properties)
-  }
+  const updateBlockProperties =useCallback(async(bid: string, properties: any) => {
+      setBlocks(prevBlocks =>
+        prevBlocks.map(block =>
+          block.bid === bid
+            ? {
+                ...block,
+                type: properties.type,
+                properties: properties.properties,
+                variable_bids: properties.variable_bids || [],
+                resource_bids: properties.resource_bids || []
+              }
+            : block
+        )
+      )
 
-  const buildBlockList = (blocks: Block[]) => {
-    const list = blocks.map((block: Block, index) => {
-      return {
-        properties: {
-          block_id: block.properties.block_id,
-          block_no: '',
-          block_name: '',
-          block_desc: '',
-          block_type: 101,
-          block_index: index,
-          block_content: {
-            type: blockContentTypes[block.properties.block_id],
-            properties: blockContentProperties[block.properties.block_id]
-          },
-          block_ui: {
-            type: blockUITypes[block.properties.block_id],
-            properties: blockUIProperties[block.properties.block_id]
-          }
-        },
-        type: 'block'
-      }
-    })
-    return list
-  }
+
+          setBlockTypes(prev => ({
+            ...prev,
+            [bid]: properties.type
+          }))
+          setBlockProperties(prev => {
+            const newState = {
+              ...prev,
+              [bid]: properties
+            }
+            return newState
+          })
+  }, [])
 
   const loadBlocks = async (outlineId: string, shifuId: string) => {
     try {
@@ -320,103 +306,86 @@ export const ShifuProvider: React.FC<{ children: ReactNode }> = ({
       setError(null)
       clearBlockErrors()
       const blocksData = await api.getBlocks({
-        outline_id: outlineId,
-        shifu_id: shifuId
+        shifu_bid: shifuId,
+        outline_bid: outlineId
       })
-      const list = blocksData.filter(p => p.type == 'block') as Block[]
+      const list = blocksData
       setBlocks(list)
-      initBlockContentTypes(list)
-      initBlockContentProperties(list)
-      const blockUIList = list.filter(p => p.properties.block_ui)
-      initBlockUITypes(blockUIList)
-      initBlockUIProperties(blockUIList)
+      initBlockTypes(list)
+      initBlockProperties(list)
       setIsLoading(false)
     } catch (error) {
       console.error(error)
-      setError('Failed to load blocks')
       setIsLoading(false)
     }
   }
-  const saveBlocks = async (shifu_id: string) => {
+  const blockPropertiesRef = useRef(blockProperties)
+  blockPropertiesRef.current = blockProperties
+  const saveBlocks = useCallback(async (shifu_id: string) => {
     if (isLoading) {
       return
     }
-    const list = buildBlockList(blocks)
+    console.log('saveBlocks', blockPropertiesRef.current)
+    const list = buildBlockListWithAllInfo(blocks, blockTypes, blockPropertiesRef.current)
     try {
       setError(null)
       await api.saveBlocks({
-        outline_id: currentNode!.id,
-        blocks: list,
-        shifu_id: shifu_id
+        shifu_bid: shifu_id,
+        outline_bid: currentNode!.bid,
+        blocks: list
       })
     } catch (error) {
       console.error(error)
       setError('Failed to save blocks')
     }
-  }
+  }, [blocks, isLoading, blockTypes, currentNode])
+
   const addBlock = async (
     index: number,
     blockType: string = 'ai',
     shifu_id: string
-  ) => {
+  ): Promise<string> => {
     setIsSaving(true)
     setError(null)
     try {
       const item = ContentTypes.find(p => p.type == blockType)
-      const buttonUI = UITypes[0]
 
       const block = await api.addBlock({
         block: {
-          block_content: {
-            type: blockType,
-            properties: item?.properties
-          },
-          block_desc: '',
-          block_index: index,
-          block_name: '',
-          block_no: '',
-          block_type: 0,
-          block_ui: buttonUI
+          "properties": item?.properties,
+          "type": blockType,
         },
         block_index: index,
-        outline_id: currentNode!.id,
-        shifu_id: shifu_id
+        outline_bid: currentNode!.bid,
+        shifu_bid: shifu_id
       })
 
       blocks.splice(index, 0, block)
       const list = [...blocks]
-      setBlockContentTypes({
-        ...blockContentTypes,
-        [block.properties.block_id]: blockType
+      setBlockTypes({
+        ...blockTypes,
+        [block.bid]: blockType
       })
-      setBlockContentProperties({
-        ...blockContentProperties,
-        [block.properties.block_id]: item?.properties
-      })
-      setBlockUITypes({
-        ...blockUITypes,
-        [block.properties.block_id]: buttonUI.type
-      })
-      setBlockUIProperties({
-        ...blockUIProperties,
-        [block.properties.block_id]: buttonUI.properties
-      })
-      setBlockContentStateById(block.properties.block_id, 'edit')
+      updateBlockProperties(block.bid, block)
+      setBlockContentStateById(block.bid, 'edit')
       setBlocks(list)
       setLastSaveTime(new Date())
 
       setTimeout(() => {
-        document.getElementById(block.properties.block_id)?.scrollIntoView({
+        document.getElementById(block.bid)?.scrollIntoView({
           behavior: 'smooth'
         })
       }, 500)
+      return block.bid
     } catch (error) {
       console.error(error)
       setError('Failed to add block')
+      return ''
     } finally {
       setIsSaving(false)
     }
   }
+
   const addSubOutline = async (parent: Outline, name = '') => {
     if (cataData['new_chapter']) {
       return
@@ -427,19 +396,21 @@ export const ShifuProvider: React.FC<{ children: ReactNode }> = ({
     const id = 'new_chapter'
     parent.children?.push({
       id,
-      parent_id: parent.id,
+      bid: id,
+      parent_bid: parent.id,
       name: name,
       children: [],
-      no: '',
+      position: '',
       depth: (parent?.depth || 0) + 1
     })
 
     updateOuline(id, {
-      parent_id: parent.id,
+      parent_bid: parent.id,
       id,
+      bid: id,
       name: name,
       children: [],
-      no: '',
+      position: '',
       depth: (parent?.depth || 0) + 1
     })
 
@@ -452,10 +423,8 @@ export const ShifuProvider: React.FC<{ children: ReactNode }> = ({
     async (
       outline: string,
       blocks: Block[],
-      blockContentTypes: Record<string, any>,
-      blockContentProperties: Record<string, any>,
-      blockUITypes: Record<string, any>,
-      blockUIProperties: Record<string, any>,
+      blockTypes: Record<string, any>,
+      blockProperties: Record<string, BlockDTO>,
       shifu_id: string
     ): Promise<ApiResponse<SaveBlockListResult> | null> => {
       if (isLoading) {
@@ -467,15 +436,13 @@ export const ShifuProvider: React.FC<{ children: ReactNode }> = ({
         setError(null)
         const blockList = buildBlockListWithAllInfo(
           blocks,
-          blockContentTypes,
-          blockContentProperties,
-          blockUITypes,
-          blockUIProperties
+          blockTypes,
+          blockProperties
         )
         const result = await api.saveBlocks({
-          outline_id: outline,
+          outline_bid: outline,
           blocks: blockList,
-          shifu_id: shifu_id || ''
+          shifu_bid: shifu_id || ''
         })
 
         if (!result) {
@@ -516,19 +483,15 @@ export const ShifuProvider: React.FC<{ children: ReactNode }> = ({
       async (
         outline: string,
         blocks: Block[],
-        blockContentTypes: Record<string, any>,
+        blockTypes: Record<string, any>,
         blockContentProperties: Record<string, any>,
-        blockUITypes: Record<string, any>,
-        blockUIProperties: Record<string, any>,
         shifu_id: string
       ) => {
         return await saveCurrentBlocks(
           outline,
           blocks,
-          blockContentTypes,
+          blockTypes,
           blockContentProperties,
-          blockUITypes,
-          blockUIProperties,
           shifu_id
         )
       },
@@ -538,35 +501,34 @@ export const ShifuProvider: React.FC<{ children: ReactNode }> = ({
   ) as (
     outline: string,
     blocks: Block[],
-    blockContentTypes: Record<string, any>,
-    blockContentProperties: Record<string, any>,
-    blockUITypes: Record<string, any>,
-    blockUIProperties: Record<string, any>,
+    blockTypes: Record<string, any>,
+    blockProperties: Record<string, any>,
     shifu_id: string
   ) => Promise<ApiResponse<SaveBlockListResult> | null>
 
   const addSiblingOutline = async (item: Outline, name = '') => {
     const id = 'new_chapter'
-    const parent = findNode(item.parentId || '')
+    const parent = findNode(item.parent_bid || '')
     const index = parent?.children?.findIndex(
       (child: any) => child.id === item.id
     )
     // insert item after index;
     parent.children?.splice(index + 1, 0, {
       id,
-      parent_id: parent.id,
+      parent_bid: parent.id,
       name: name,
       children: [],
-      no: '',
+      position: '',
       depth: (parent?.depth || 0) + 1
     })
 
     updateOuline(id, {
-      parent_id: parent.id,
+      parent_bid: parent.id,
+      bid: id,
       id,
       name: name,
       children: [],
-      no: '',
+      position: '',
       depth: (parent?.depth || 0) + 1
     })
 
@@ -583,36 +545,41 @@ export const ShifuProvider: React.FC<{ children: ReactNode }> = ({
 
     try {
       if (data.id === 'new_chapter') {
-        const newChapter = await api.createChapter({
-          parent_id: data.parent_id,
-          chapter_description: data.name,
-          chapter_index: index,
-          chapter_name: data.name,
-          shifu_id: currentShifu?.shifu_id
+        const newChapter = await api.createOutline({
+          parent_bid: "",
+          index: index,
+          name: data.name,
+          description: data.name,
+          type: 'trial',
+          system_prompt: '',
+          is_hidden: false,
+          shifu_id: currentShifu?.bid || ''
         })
         replaceOutline('new_chapter', {
-          id: newChapter.chapter_id,
-          name: newChapter.chapter_name,
-          no: '',
+          id: newChapter.bid,
+          bid: newChapter.bid,
+          name: newChapter.name,
+          position: '',
           children: []
         })
         setFocusId('')
         setLastSaveTime(new Date())
       } else {
-        await api.modifyChapter({
-          chapter_id: data.id,
-          chapter_index: index,
-          chapter_description: data.name,
-          chapter_name: data.name,
-          shifu_id: currentShifu?.shifu_id
+        await api.modifyOutline({
+          outline_bid: data.id,
+          index: index,
+          description: data.name,
+          name: data.name,
+          shifu_id: currentShifu?.bid || ''
         })
 
         const currentChapter = chapters.find(chapter => chapter.id === data.id)
 
         replaceOutline(data.id, {
           id: data.id,
+          bid: data.bid,
           name: data.name,
-          no: '',
+          position: '',
           children: currentChapter?.children || []
         })
         setFocusId('')
@@ -633,46 +600,49 @@ export const ShifuProvider: React.FC<{ children: ReactNode }> = ({
     }
   }
 
-  const createUnit = async (data: Outline) => {
+  const createOutline = async (data: Outline) => {
     setIsSaving(true)
     setError(null)
-    updateOutlineStatus(data.id, 'saving')
+    updateOutlineStatus(data.bid, 'saving')
 
-    const parent = findNode(data.parent_id || '')
-    const index = parent.children.findIndex(child => child.id === data.id)
+    const parent = findNode(data.parent_bid || '')
+    const index = parent?.children?.findIndex(child => child.bid === data.bid) || 0
 
     try {
-      if (data.id === 'new_chapter') {
-        const newUnit = await api.createUnit({
-          parent_id: data.parent_id,
-          unit_index: index,
-          chapter_id: data.parent_id,
-          unit_description: data.name,
-          unit_name: data.name,
-          shifu_id: currentShifu?.shifu_id
+      if (data.bid === 'new_chapter') {
+        const newUnit = await api.createOutline({
+          parent_bid: data.parent_bid,
+          index: index,
+          name: data.name,
+          description: data.name,
+          type: 'trial',
+          system_prompt: '',
+          is_hidden: false,
+          shifu_bid: currentShifu?.bid || ''
         })
 
         replaceOutline('new_chapter', {
-          id: newUnit.id,
+          id: newUnit.bid,
+          bid: newUnit.bid,
           name: newUnit.name,
-          no: '',
+          position: '',
           children: []
         })
         setFocusId('')
         setLastSaveTime(new Date())
       } else {
-        await api.modifyUnit({
-          unit_id: data.id,
-          unit_index: index,
-          unit_description: data.name,
-          unit_name: data.name,
-          shifu_id: currentShifu?.shifu_id
+        await api.modifyOutline({
+          outline_bid: data.id,
+          index: index,
+          description: data.name,
+          name: data.name,
+          shifu_bid: currentShifu?.bid || ''
         })
         replaceOutline(data.id, {
           id: data.id,
+          bid: data.bid,
           name: data.name,
-          no: '',
-          children: []
+          position: data.position,
         })
         setFocusId('')
         setLastSaveTime(new Date())
@@ -697,23 +667,27 @@ export const ShifuProvider: React.FC<{ children: ReactNode }> = ({
       updateOutlineStatus(data.id, 'saving')
       setError(null)
 
-      const parent = findNode(data.parentId || '')
+      const parent = findNode(data.parent_bid || '')
       // get node index in children
       const index = parent.children.findIndex(child => child.id === data.id)
 
-      const newUnit = await api.createUnit({
-        parent_id: data.parent_id,
-        unit_index: index - 1,
-        chapter_id: data.parent_id,
-        unit_description: data.name,
-        unit_name: data.name,
-        shifu_id: currentShifu?.shifu_id
+      const newUnit = await api.createOutline({
+        parent_bid: data.parent_bid,
+        index: index - 1,
+        name: data.name,
+        description: data.name,
+        type: 'trial',
+        system_prompt: '',
+        is_hidden: false,
+        shifu_id: currentShifu?.bid || ''
       })
 
       replaceOutline('new_chapter', {
-        id: newUnit.id,
+        id: newUnit.bid,
+        parent_bid: parent.bid,
+        bid: newUnit.bid,
         name: newUnit.name,
-        no: '',
+        position: '',
         children: []
       })
     } catch (error) {
@@ -736,6 +710,7 @@ export const ShifuProvider: React.FC<{ children: ReactNode }> = ({
       }
     })
   }
+
   const updateOuline = async (id: string, value: Outline) => {
     setCataData({
       ...cataData,
@@ -760,13 +735,17 @@ export const ShifuProvider: React.FC<{ children: ReactNode }> = ({
     })
     setFocusId(chapter.id)
   }
+
   const replaceOutline = async (id: string, outline: Outline) => {
     const node = findNode(id)
     node.id = outline.id
     node.name = outline.name
-    node.no = outline.no
-    node.parent_id = outline.parent_id
-    node.children = outline.children
+    node.position = outline.position
+    node.parent_bid = outline.parent_bid
+    node.bid = outline.bid
+    if (outline.children && outline.children.length > 0) {
+      node.children = outline.children
+    }
     setChapters([...chapters])
     delete cataData[id]
     setCataData({
@@ -777,7 +756,6 @@ export const ShifuProvider: React.FC<{ children: ReactNode }> = ({
       }
     })
   }
-
 
   const setBlockContentPropertiesById = (
     id: string,
@@ -794,49 +772,59 @@ export const ShifuProvider: React.FC<{ children: ReactNode }> = ({
     setBlockContentProperties({
       ...blockContentProperties,
       [id]: {
-        ...blockContentProperties[id],
-        ...properties
+        ...properties,
       }
     })
   }
-  const setBlockContentTypesById = (id: string, type: string) => {
-    setBlockContentTypes({
-      ...blockContentTypes,
+
+  const setBlockContentTypesById = (id: string, type: BlockType) => {
+    setBlockTypes({
+      ...blockTypes,
       [id]: type
     })
   }
+
   const setBlockUIPropertiesById = (
     id: string,
     properties: any,
     reset: boolean = false
   ) => {
     if (reset) {
-      setBlockUIProperties({
-        ...blockUIProperties,
+      setBlockProperties({
+        ...blockProperties,
         [id]: properties
       })
       return
     }
-    setBlockUIProperties({
-      ...blockUIProperties,
+    setBlockProperties({
+      ...blockProperties,
       [id]: {
-        ...blockUIProperties[id],
+        ...blockProperties[id],
         ...properties
       }
     })
+    if (blockProperties[id].type !== properties.type) {
+      setBlockTypes({
+        ...blockTypes,
+        [id]: properties.type
+      })
+    }
   }
-  const setBlockUITypesById = (id: string, type: string) => {
-    setBlockUITypes({
-      ...blockUITypes,
+
+  const setBlockUITypesById = (id: string, type: BlockType) => {
+    setBlockTypes({
+      ...blockTypes,
       [id]: type
     })
   }
+
   const setBlockContentStateById = (id: string, state: 'edit' | 'preview') => {
     setBlockContentState({
       ...blockContentState,
       [id]: state
     })
   }
+
   const updateChapterOrder = async (
     move_chapter_id: string,
     move_to_parent_id?: string,
@@ -849,7 +837,7 @@ export const ShifuProvider: React.FC<{ children: ReactNode }> = ({
         move_chapter_id,
         move_to_parent_id,
         chapter_ids,
-        shifu_id: currentShifu?.shifu_id
+        shifu_id: currentShifu?.bid
       })
       setLastSaveTime(new Date())
     } catch (error) {
@@ -859,19 +847,19 @@ export const ShifuProvider: React.FC<{ children: ReactNode }> = ({
       setIsSaving(false)
     }
   }
+
   const removeBlock = async (id: string) => {
-    const list = blocks.filter(block => block.properties.block_id !== id)
+    const list = blocks.filter(block => block.bid !== id)
     setBlocks(list)
     await saveCurrentBlocks(
-      currentNode!.id,
+      currentNode!.bid,
       list,
-      blockContentTypes,
-      blockContentProperties,
-      blockUITypes,
-      blockUIProperties,
-      currentShifu?.shifu_id || ''
+      blockTypes,
+      blockProperties,
+      currentShifu?.bid || ''
     )
   }
+
   const loadModels = async () => {
     const list = await api.getModelList({})
     setModels(list)
@@ -888,6 +876,13 @@ export const ShifuProvider: React.FC<{ children: ReactNode }> = ({
     setBlockErrors({})
   }
 
+  const reorderOutlineTree = async (outlines: ReorderOutlineItemDto[]) => {
+    await api.reorderOutlineTree({
+      shifu_bid: currentShifu?.bid || '',
+      outlines
+    })
+  }
+
   const value: ShifuContextType = {
     currentShifu,
     chapters,
@@ -900,14 +895,15 @@ export const ShifuProvider: React.FC<{ children: ReactNode }> = ({
     cataData,
     blocks,
     blockContentProperties,
-    blockContentTypes,
-    blockUIProperties,
-    blockUITypes,
+    blockTypes,
     blockContentState,
     blockErrors,
     currentNode,
     profileItemDefinations,
     models,
+    blockProperties,
+    blockUITypes,
+    blockContentTypes,
     actions: {
       setFocusId,
       addChapter,
@@ -922,9 +918,10 @@ export const ShifuProvider: React.FC<{ children: ReactNode }> = ({
       removeOutline,
       replaceOutline,
       createSiblingUnit,
-      createUnit,
+      createOutline,
       loadBlocks,
       addBlock,
+      updateBlockProperties,
       setBlockContentPropertiesById,
       setBlockContentTypesById,
       setBlockUIPropertiesById,
@@ -939,7 +936,8 @@ export const ShifuProvider: React.FC<{ children: ReactNode }> = ({
       setCurrentNode,
       loadModels,
       setBlockError,
-      clearBlockErrors
+      clearBlockErrors,
+      reorderOutlineTree
     }
   }
 

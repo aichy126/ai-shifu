@@ -466,7 +466,14 @@ def get_study_record(
             .order_by(AILesson.id.desc())
             .first()
         )
-        course_info = AICourse.query.filter_by(course_id=lesson_info.course_id).first()
+        course_info = (
+            AICourse.query.filter(
+                AICourse.course_id == lesson_info.course_id,
+                AICourse.status.in_(ai_course_status),
+            )
+            .order_by(AICourse.id.desc())
+            .first()
+        )
         if not course_info:
             return None
         teacher_avatar = course_info.course_teacher_avatar
@@ -551,18 +558,6 @@ def get_study_record(
                 pass
         else:
             last_attend = last_attends[-1]
-        if last_attend is None or last_attend.status == ATTEND_STATUS_COMPLETED:
-            app.logger.info(
-                "last_script.script_ui_content:{}".format(last_script.script_ui_content)
-            )
-            uis = handle_ui(
-                app, user_info, last_attend, last_script, "", MockClient(), {}
-            )
-            app.logger.info("uis:{}".format(uis))
-            if len(uis) > 0:
-                ret.ui = uis[0]
-            return ret
-
         uis = handle_ui(app, user_info, last_attend, last_script, "", MockClient(), {})
         app.logger.info("uis:{}".format(uis))
         if len(uis) > 0:

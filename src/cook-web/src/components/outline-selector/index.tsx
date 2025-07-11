@@ -71,7 +71,7 @@ const MinimalTreeItemComponent = React.forwardRef<
                 onClick={onSelect}
             >
                 <span className='w-40 whitespace-nowrap overflow-hidden text-ellipsis' >
-                    {cataData[props.item.id!]?.name || ""}
+                    {cataData[props.item.bid!]?.name || ""}
                 </span>
 
             </div>
@@ -84,6 +84,7 @@ MinimalTreeItemComponent.displayName = 'MinimalTreeItemComponent';
 
 export default function OutlineSelector({ value, chapters = [], onSelect }: { value: string, chapters: Outline[], onSelect?: (node: Outline) => void }) {
     "use client"
+
     const { t } = useTranslation();
     const [nodes, setNodes] = useState(chapters);
     const [open, setOpen] = useState(false);
@@ -92,16 +93,16 @@ export default function OutlineSelector({ value, chapters = [], onSelect }: { va
         setOpen(false);
         onSelect?.(node);
         setSelectedNode(node);
-        value = node.id;
+        value = node.bid;
     }
     useEffect(() => {
         for (const chapter of chapters) {
-            if (chapter.id === value) {
+            if (chapter.bid === value) {
                 setSelectedNode(chapter);
                 return;
             }
             for (const child of chapter.children || []) {
-                if (child.id === value) {
+                if (child.bid === value) {
                     setSelectedNode(child);
                     return;
                 }
@@ -113,7 +114,7 @@ export default function OutlineSelector({ value, chapters = [], onSelect }: { va
         <DropdownMenu open={open} onOpenChange={setOpen}>
             <DropdownMenuTrigger>
                 {
-                    selectedNode ? (selectedNode.no + ":" + selectedNode.name) : t('outline-selector.select-chapter')
+                    selectedNode ? (selectedNode.position + ":" + selectedNode.name) : t('outline-selector.select-chapter')
                 }
             </DropdownMenuTrigger>
             <DropdownMenuContent align='start'>

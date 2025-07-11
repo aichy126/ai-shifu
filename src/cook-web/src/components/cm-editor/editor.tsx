@@ -14,26 +14,25 @@ import { SelectedOption, IEditorContext } from './type'
 import './index.css'
 
 import {
-  profilePlaceholders,
+  variablePlaceholders,
   imgPlaceholders,
   videoPlaceholders,
   createSlashCommands,
-  parseContentInfo
+  parseContentInfo,
+  getProfileKeyListFromContent
 } from './util'
 import { useTranslation } from 'react-i18next'
 
 type EditorProps = {
   content?: string
   isEdit?: boolean
-  profiles?: string[]
-  onChange?: (value: string, isEdit: boolean) => void
+  onChange?: (value: string, variables: string[], isEdit: boolean) => void
   onBlur?: () => void
 }
 
 const Editor: React.FC<EditorProps> = ({
   content = '',
   isEdit,
-  profiles = [],
   onChange,
   onBlur
 }) => {
@@ -42,7 +41,6 @@ const Editor: React.FC<EditorProps> = ({
   const [selectedOption, setSelectedOption] = useState<SelectedOption>(
     SelectedOption.Empty
   )
-  const [profileList, setProfileList] = useState<string[]>(profiles)
   const [selectContentInfo, setSelectContentInfo] = useState<any>()
   const editorViewRef = useRef<EditorView | null>(null)
 
@@ -51,8 +49,6 @@ const Editor: React.FC<EditorProps> = ({
     setSelectedOption,
     dialogOpen,
     setDialogOpen,
-    profileList,
-    setProfileList
   }
 
   const onSelectedOption = useCallback((selectedOption: SelectedOption) => {
@@ -214,7 +210,7 @@ const Editor: React.FC<EditorProps> = ({
               extensions={[
                 EditorView.lineWrapping,
                 slashCommandsExtension(),
-                profilePlaceholders,
+                variablePlaceholders,
                 imgPlaceholders,
                 videoPlaceholders,
                 EditorView.updateListener.of(update => {
@@ -234,7 +230,7 @@ const Editor: React.FC<EditorProps> = ({
               theme='light'
               minHeight='2rem'
               onChange={(value: string) => {
-                onChange?.(value, isEdit || false)
+                onChange?.(value, getProfileKeyListFromContent(value), isEdit || false)
               }}
               onBlur={onBlur}
             />
