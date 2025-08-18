@@ -4,21 +4,15 @@ Unit tests for Config class (Flask integration).
 
 import os
 import pytest
-from unittest.mock import Mock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 from flask import Flask
 from flaskr.common.config import (
     Config,
-    EnhancedConfig,
     EnvironmentConfigError,
     get_config,
-    __INSTANCE__,
     __ENHANCED_CONFIG__,
 )
-from tests.common.fixtures.config_data import (
-    MINIMAL_ENV_VARS,
-    FULL_TEST_ENV_VARS,
-    DOCKER_ENV_CONFIG,
-)
+from tests.common.fixtures.config_data import DOCKER_ENV_CONFIG
 
 
 class TestConfigInitialization:
@@ -194,7 +188,7 @@ class TestConfigSetItem:
         config = Config(parent_config, app)
 
         # Get value to populate cache
-        value1 = config["REDIS_HOST"]
+        _ = config["REDIS_HOST"]
         assert "REDIS_HOST" in config.enhanced._cache
 
         # Update value
@@ -409,7 +403,7 @@ class TestGetConfigFunction:
         app.logger = MagicMock()
 
         # Initialize Config (sets global instance)
-        config = Config(MagicMock(), app)
+        _ = Config(MagicMock(), app)
 
         # Use get_config function
         value = get_config("REDIS_HOST")

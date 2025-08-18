@@ -4,7 +4,6 @@ Integration tests for the complete configuration system.
 
 import os
 import pytest
-import tempfile
 from unittest.mock import patch, MagicMock
 from flask import Flask
 from flaskr.common.config import (

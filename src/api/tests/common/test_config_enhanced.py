@@ -2,9 +2,8 @@
 Unit tests for EnhancedConfig class.
 """
 
-import os
 import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 from flaskr.common.config import EnhancedConfig, EnvironmentConfigError, EnvVar
 from tests.common.fixtures.config_data import (
     MINIMAL_ENV_VARS,
@@ -325,7 +324,7 @@ Line 3 of description""",
         output = config.export_env_example()
 
         lines = output.split("\n")
-        desc_lines = [l for l in lines if l.startswith("# Line")]
+        desc_lines = [line for line in lines if line.startswith("# Line")]
         assert len(desc_lines) == 3
 
     def test_export_with_types(self):
@@ -369,7 +368,7 @@ Line 3 of description""",
 
         # Find group headers
         lines = output.split("\n")
-        group_lines = [l for l in lines if l.startswith("#=")]
+        group_lines = [line for line in lines if line.startswith("#=")]
 
         # Should have multiple groups
         assert len(group_lines) > 0
