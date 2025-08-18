@@ -421,7 +421,13 @@ For Docker: mysql://root:ai-shifu@ai-shifu-mysql:3306/ai-shifu?charset=utf8mb4""
     "SECRET_KEY": EnvVar(
         name="SECRET_KEY",
         required=True,
-        description="Secret key for JWT and session encryption",
+        description="""Secret key for JWT token signing and verification
+CRITICAL: Used to encrypt/decrypt user authentication tokens
+- Must be a strong random string (at least 32 characters recommended)
+- DO NOT change in production (will invalidate all user sessions)
+- Keep different values for dev/test/prod environments
+- Never commit to version control
+Generate secure key: python -c "import secrets; print(secrets.token_urlsafe(32))" """,
         secret=True,
         group="auth",
     ),
@@ -960,6 +966,107 @@ class EnhancedConfig:
                     default_value = ""
                 lines.append(f'{env_var.name}="{default_value}"')
                 lines.append("")
+        return "\n".join(lines)
+
+    def export_env_example_filtered(self, filter_type: str = "all") -> str:
+        """Export environment variable definitions as .env.example format with filtering.
+
+        Args:
+            filter_type: "all" for all variables, "required" for only required variables
+
+        Returns:
+            Formatted .env.example content as string
+        """
+        if filter_type == "required":
+            header_lines = [
+                "# AI-Shifu Environment Configuration - MINIMAL REQUIRED SET",
+                "# This file contains only the required environment variables that MUST be set",
+                "# For the complete list of configurable options, see .env.example.full\n",
+            ]
+        else:
+            header_lines = [
+                "# AI-Shifu Environment Configuration - COMPLETE SET",
+                "# This file contains all available environment variables with their defaults",
+                "# For a minimal setup, see .env.example.minimal\n",
+            ]
+
+        lines = header_lines
+        groups = {}
+
+        # Filter and group variables
+        for var_name, env_var in self.env_vars.items():
+            # Apply filter
+            if filter_type == "required" and not env_var.required:
+                continue
+
+            if env_var.group not in groups:
+                groups[env_var.group] = []
+            groups[env_var.group].append(env_var)
+
+        # Generate output for each group
+        for group, vars in sorted(groups.items()):
+            # Skip empty groups
+            if not vars:
+                continue
+
+            lines.append(f"\n#{'=' * 60}")
+            lines.append(f"# {group.replace('_', ' ').title()}")
+            lines.append(f"#{'=' * 60}\n")
+
+            for env_var in sorted(vars, key=lambda x: x.name):
+                if env_var.description:
+                    # Handle multi-line descriptions
+                    description_lines = env_var.description.strip().split("\n")
+                    for desc_line in description_lines:
+                        lines.append(f"# {desc_line.strip()}")
+
+                # Add metadata comments
+                metadata = []
+                if env_var.required:
+                    metadata.append("REQUIRED - must be set")
+                elif env_var.default is None:
+                    metadata.append("Optional - handled by libraries")
+                else:
+                    metadata.append(f"Optional - default: {env_var.default}")
+
+                if env_var.type != str:
+                    metadata.append(f"Type: {env_var.type.__name__}")
+
+                if env_var.validator:
+                    metadata.append("Has validation")
+
+                if env_var.secret:
+                    metadata.append("Secret value")
+
+                if metadata:
+                    lines.append(f"# ({', '.join(metadata)})")
+
+                # Set the value
+                if env_var.required:
+                    # Required variables should not have a preset value
+                    value = ""
+                else:
+                    default_value = (
+                        env_var.default if env_var.default is not None else ""
+                    )
+                    if env_var.secret and default_value:
+                        value = ""
+                    else:
+                        value = default_value
+
+                lines.append(f'{env_var.name}="{value}"')
+                lines.append("")
+
+        # Add footer
+        if filter_type == "required":
+            lines.append("\n# ========== END OF REQUIRED VARIABLES ==========")
+            lines.append("# Make sure all the above variables are properly configured")
+        else:
+            lines.append("\n# ========== END OF CONFIGURATION ==========")
+            lines.append(
+                "# Remember to keep your .env file secure and never commit it to version control"
+            )
+
         return "\n".join(lines)
 
 

@@ -369,11 +369,73 @@ export DATABASE_URL="your_database_connection_string"
 
 ## Environment Configuration
 
+### Configuration Files
+
 Environment variables are managed through `.env` files:
 
 - Docker: `docker/.env`
 - Local development: individual `.env` files in component directories
 - Key configurations: LLM API keys, database connections, Redis settings
+- Example files: `docker/.env.example.minimal` (required only) and `docker/.env.example.full` (all variables)
+
+### Managing Environment Variables
+
+#### Adding or Modifying Environment Variables
+
+When you need to add or modify environment variables:
+
+1. **Update the configuration definition** in `src/api/flaskr/common/config.py`:
+   ```python
+   "NEW_VARIABLE": EnvVar(
+       name="NEW_VARIABLE",
+       required=False,  # True if this variable MUST be set
+       default="default_value",  # Default value (None if required=True)
+       type=str,  # Type: str, int, float, bool, list
+       description="""Detailed description of the variable
+       Can be multi-line for complex explanations""",
+       secret=False,  # True for sensitive values like API keys
+       group="app",  # Group: app, database, redis, auth, llm, etc.
+       validator=lambda x: validator_function(x),  # Optional validation
+   ),
+   ```
+
+4. **Regenerate example files**:
+   ```bash
+   cd src/api
+   python scripts/generate_env_examples.py
+   ```
+   This will update:
+   - `docker/.env.example.minimal` - Only required variables
+   - `docker/.env.example.full` - All available variables
+
+5. **Update tests if needed**:
+   - Add to test fixtures in `src/api/tests/common/fixtures/config_data.py`
+   - Update relevant test cases
+
+#### Important Configuration Guidelines
+
+1. **Required vs Optional**:
+   - `required=True`: Variable MUST be set, no default value allowed
+   - `required=False` with default: Optional with fallback value
+   - `required=False` without default: Handled by libraries
+
+2. **Secret Values**:
+   - Mark sensitive data with `secret=True`
+   - Examples: API keys, passwords, tokens
+   - These won't show default values in generated examples
+
+3. **Type Conversion**:
+   - Supported types: `str`, `int`, `float`, `bool`, `list`
+   - List values are comma-separated: `"value1,value2,value3"`
+
+4. **Validation**:
+   - Add validators for values with specific requirements
+   - Example: Port numbers, email formats, URL patterns
+
+5. **Descriptions**:
+   - Be detailed and clear
+   - Include examples when helpful
+   - Support multi-line for complex configurations
 
 ## Cook Web API Request Architecture
 
