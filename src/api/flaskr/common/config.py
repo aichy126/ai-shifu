@@ -285,7 +285,9 @@ DeepSeek: deepseek-chat""",
     "SQLALCHEMY_DATABASE_URI": EnvVar(
         name="SQLALCHEMY_DATABASE_URI",
         required=True,
-        description="MySQL database connection URI",
+        description="""MySQL database connection URI
+Example: mysql://username:password@hostname:3306/database_name?charset=utf8mb4
+For Docker: mysql://root:ai-shifu@ai-shifu-mysql:3306/ai-shifu?charset=utf8mb4""",
         secret=True,
         group="database",
     ),
