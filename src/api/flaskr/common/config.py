@@ -17,13 +17,22 @@ class EnvVar:
     """Environment variable definition with metadata."""
 
     name: str
-    default: Any = None  # If None, variable is required
+    required: bool = False  # Whether variable must be explicitly set in environment
+    default: Any = None  # Default value if not set (only if required=False)
     type: Type = str  # Using Type annotation to avoid conflict
     description: str = ""
     validator: Optional[Callable[[Any], bool]] = None
     secret: bool = False
     group: str = "general"
     depends_on: List[str] = field(default_factory=list)
+
+    def __post_init__(self):
+        """Validate EnvVar configuration after initialization."""
+        if self.required and self.default is not None:
+            raise ValueError(
+                f"Environment variable '{self.name}' is marked as required "
+                "but has a default value. Required variables must not have defaults."
+            )
 
     def validate_value(self, value: Any) -> bool:
         """Validate the environment variable value."""
@@ -76,32 +85,34 @@ ENV_VARS: Dict[str, EnvVar] = {
     "NEXT_PUBLIC_LOGIN_METHODS_ENABLED": EnvVar(
         name="NEXT_PUBLIC_LOGIN_METHODS_ENABLED",
         default="phone",
-        description="Enabled login methods (phone, email, or phone,email)",
+        description="""Login method configuration (phone, email, or both)
+Values: "phone" | "email" | "phone,email"
+Default: "phone" (phone-only login if not configured)""",
         group="app",
     ),
     "NEXT_PUBLIC_DEFAULT_LOGIN_METHOD": EnvVar(
         name="NEXT_PUBLIC_DEFAULT_LOGIN_METHOD",
         default="phone",
-        description="Default login method tab",
+        description='Default login method tab. Values: "phone" | "email"',
         group="app",
     ),
     "REACT_APP_ALWAYS_SHOW_LESSON_TREE": EnvVar(
         name="REACT_APP_ALWAYS_SHOW_LESSON_TREE",
         default="true",
-        description="Always show lesson tree in UI",
+        description="Always show lesson tree",
         group="app",
     ),
     "LOGGING_PATH": EnvVar(
         name="LOGGING_PATH",
         default="logs/ai-shifu.log",
-        description="Path for log file",
+        description="Path of log file",
         group="app",
     ),
     "ASK_MAX_HISTORY_LEN": EnvVar(
         name="ASK_MAX_HISTORY_LEN",
         default=10,
         type=int,
-        description="Maximum number of history messages in ask context",
+        description="The count of history messages to append to LLM's context in ask",
         group="app",
     ),
     "SHIFU_PERMISSION_CACHE_EXPIRE": EnvVar(
@@ -222,7 +233,12 @@ ENV_VARS: Dict[str, EnvVar] = {
     "DEFAULT_LLM_MODEL": EnvVar(
         name="DEFAULT_LLM_MODEL",
         default="",
-        description="Default LLM model to use",
+        description="""Default LLM model. Supported models:
+OpenAI: gpt-4o-latest, gpt-4o-mini, gpt-4, gpt-3.5-turbo, chatgpt-4o-latest
+ERNIE: ERNIE-4.0-8K, ERNIE-3.5-8K, ERNIE-3.5-128K, ERNIE-Speed-8K, ERNIE-Speed-128K
+GLM: glm-4, glm-4-air, glm-4-airx, glm-4-flash, glm-4v, glm-3-turbo
+Qwen: qwen-long, qwen-max, qwen-max-longcontext, qwen-plus, qwen-turbo, qwen2-*
+DeepSeek: deepseek-chat""",
         group="llm",
     ),
     "DEFAULT_LLM_TEMPERATURE": EnvVar(
@@ -243,7 +259,7 @@ ENV_VARS: Dict[str, EnvVar] = {
     "EMBEDDING_MODEL_BASE_URL": EnvVar(
         name="EMBEDDING_MODEL_BASE_URL",
         default="",
-        description="Base URL for embedding model API",
+        description="OpenAI-API-compatible embedding model base URL (OpenAI, SILICON, Xinference, One-API, etc.)",
         group="knowledge_base",
     ),
     "EMBEDDING_MODEL_API_KEY": EnvVar(
@@ -268,6 +284,7 @@ ENV_VARS: Dict[str, EnvVar] = {
     # Database Configuration
     "SQLALCHEMY_DATABASE_URI": EnvVar(
         name="SQLALCHEMY_DATABASE_URI",
+        required=True,
         description="MySQL database connection URI",
         secret=True,
         group="database",
@@ -371,36 +388,37 @@ ENV_VARS: Dict[str, EnvVar] = {
     "REDIS_KEY_PREFIX_MAIL_CODE": EnvVar(
         name="REDIS_KEY_PREFIX_MAIL_CODE",
         default="ai-shifu:mail_code:",
-        description="Redis key prefix for email verification code",
+        description="Prefix of email verification code",
         group="redis",
     ),
     "REDIS_KEY_PREFIX_MAIL_LIMIT": EnvVar(
         name="REDIS_KEY_PREFIX_MAIL_LIMIT",
         default="ai-shifu:mail_limit:",
-        description="Redis key prefix for email sending restrictions",
+        description="The Redis key prefix for email sending restrictions",
         group="redis",
     ),
     "REDIS_KEY_PREFIX_PHONE_LIMIT": EnvVar(
         name="REDIS_KEY_PREFIX_PHONE_LIMIT",
         default="ai-shifu:phone_limit:",
-        description="Redis key prefix for phone SMS restrictions",
+        description="The prefix of Redis key for mobile phone number sending restrictions",
         group="redis",
     ),
     "REDIS_KEY_PREFIX_IP_BAN": EnvVar(
         name="REDIS_KEY_PREFIX_IP_BAN",
         default="ai-shifu:ip_ban:",
-        description="Redis key prefix for IP ban state",
+        description="The prefix of Redis key in the IP banned state",
         group="redis",
     ),
     "REDIS_KEY_PREFIX_IP_LIMIT": EnvVar(
         name="REDIS_KEY_PREFIX_IP_LIMIT",
         default="ai-shifu:ip_limit:",
-        description="Redis key prefix for IP rate limiting",
+        description="The Redis key prefix with a limit on the number of IP transmissions",
         group="redis",
     ),
     # Authentication Configuration
     "SECRET_KEY": EnvVar(
         name="SECRET_KEY",
+        required=True,
         description="Secret key for JWT and session encryption",
         secret=True,
         group="auth",
@@ -416,81 +434,82 @@ ENV_VARS: Dict[str, EnvVar] = {
         name="RESET_PWD_CODE_EXPIRE_TIME",
         default=300,
         type=int,
-        description="Password reset code expiration time in seconds",
+        description="Expire time for password reset code in seconds",
         group="auth",
     ),
     "CAPTCHA_CODE_EXPIRE_TIME": EnvVar(
         name="CAPTCHA_CODE_EXPIRE_TIME",
         default=300,
         type=int,
-        description="Captcha expiration time in seconds",
+        description="Expire time for captcha in seconds",
         group="auth",
     ),
     "PHONE_CODE_EXPIRE_TIME": EnvVar(
         name="PHONE_CODE_EXPIRE_TIME",
         default=300,
         type=int,
-        description="Phone verification code expiration time in seconds",
+        description="Expire time for phone verification code in seconds",
         group="auth",
     ),
     "MAIL_CODE_EXPIRE_TIME": EnvVar(
         name="MAIL_CODE_EXPIRE_TIME",
         default=300,
         type=int,
-        description="Email verification code expiration time in seconds",
+        description="The expiration time of the email verification code (seconds)",
         group="auth",
     ),
     "MAIL_CODE_INTERVAL": EnvVar(
         name="MAIL_CODE_INTERVAL",
         default=60,
         type=int,
-        description="Interval time for sending emails in seconds",
+        description="The interval time for sending emails",
         group="auth",
     ),
     "SMS_CODE_INTERVAL": EnvVar(
         name="SMS_CODE_INTERVAL",
         default=60,
         type=int,
-        description="Minimum interval for sending SMS to same phone number in seconds",
+        description="The minimum interval time for sending text messages to the same mobile phone number",
         group="auth",
     ),
     "IP_MAIL_LIMIT_COUNT": EnvVar(
         name="IP_MAIL_LIMIT_COUNT",
         default=10,
         type=int,
-        description="Maximum number of emails allowed per IP",
+        description="The maximum number of allowed sends",
         group="auth",
     ),
     "IP_MAIL_LIMIT_TIME": EnvVar(
         name="IP_MAIL_LIMIT_TIME",
         default=3600,
         type=int,
-        description="Time window for IP email rate limiting in seconds",
+        description="The time window for statistics of the number of sends by IP (seconds)",
         group="auth",
     ),
     "IP_SMS_LIMIT_COUNT": EnvVar(
         name="IP_SMS_LIMIT_COUNT",
         default=10,
         type=int,
-        description="Maximum number of SMS allowed per IP",
+        description="The maximum number of times IP can send text messages",
         group="auth",
     ),
     "IP_SMS_LIMIT_TIME": EnvVar(
         name="IP_SMS_LIMIT_TIME",
         default=3600,
         type=int,
-        description="Time window for IP SMS rate limiting in seconds",
+        description="The time window for statistics of the number of text messages sent by IP (seconds)",
         group="auth",
     ),
     "IP_BAN_TIME": EnvVar(
         name="IP_BAN_TIME",
         default=86400,
         type=int,
-        description="IP ban duration in seconds",
+        description="IP ban time (seconds)",
         group="auth",
     ),
     "UNIVERSAL_VERIFICATION_CODE": EnvVar(
         name="UNIVERSAL_VERIFICATION_CODE",
+        required=True,
         description="Universal verification code for testing",
         secret=True,
         group="auth",
@@ -499,7 +518,7 @@ ENV_VARS: Dict[str, EnvVar] = {
     "ALIBABA_CLOUD_SMS_ACCESS_KEY_ID": EnvVar(
         name="ALIBABA_CLOUD_SMS_ACCESS_KEY_ID",
         default="",
-        description="Alibaba Cloud SMS Access Key ID",
+        description="Alibaba Cloud settings for sending SMS and uploading files",
         secret=True,
         group="alibaba_cloud",
     ),
@@ -590,7 +609,7 @@ ENV_VARS: Dict[str, EnvVar] = {
     "LANGFUSE_PUBLIC_KEY": EnvVar(
         name="LANGFUSE_PUBLIC_KEY",
         default="",
-        description="Langfuse public key for LLM tracking",
+        description="Langfuse settings for tracking LLM",
         secret=True,
         group="monitoring",
     ),
@@ -787,8 +806,8 @@ class EnhancedConfig:
         if not has_llm:
             errors.append("At least one LLM API key must be configured")
         for var_name, env_var in self.env_vars.items():
-            # Check required variables (those with no default value)
-            if env_var.default is None and var_name not in os.environ:
+            # Check required variables (those with required=True)
+            if env_var.required and var_name not in os.environ:
                 missing_required.append(f"- {var_name}: {env_var.description}")
                 continue
             # Get value (from environment or default)
@@ -922,9 +941,14 @@ class EnhancedConfig:
             lines.append(f"#{'=' * 20}\n")
             for env_var in sorted(vars, key=lambda x: x.name):
                 if env_var.description:
-                    lines.append(f"# {env_var.description}")
-                if env_var.default is None:
+                    # Handle multi-line descriptions
+                    description_lines = env_var.description.strip().split("\n")
+                    for desc_line in description_lines:
+                        lines.append(f"# {desc_line.strip()}")
+                if env_var.required:
                     lines.append("# (REQUIRED - must be set)")
+                elif env_var.default is None:
+                    lines.append("# (Optional - handled by libraries)")
                 if env_var.type != str:
                     lines.append(f"# Type: {env_var.type.__name__}")
                 if env_var.validator:
@@ -974,7 +998,7 @@ class Config(FlaskConfig):
         """Get configuration attribute using enhanced config first."""
         try:
             return self.enhanced.get(key)
-        except:
+        except Exception:
             return self.parent.__getattr__(key)
 
     def __setitem__(self, key: Any, value: Any) -> None:
