@@ -31,8 +31,6 @@ def init_db(app: Flask):
             + str(app.config["MYSQL_PORT"])
             + "/"
             + app.config["MYSQL_DB"]
-            + "?charset="
-            + app.config.get("MYSQL_CHARSET", "utf8mb4")
         )
     else:
         app.logger.info("init dbconfig from config")
@@ -90,11 +88,16 @@ def init_db(app: Flask):
 
 def init_redis(app: Flask):
     global redis_client
+
+    if app.config["REDIS_HOST"] is None or app.config["REDIS_PORT"] is None:
+        return
+
     app.logger.info(
         "init redis {} {} {}".format(
             app.config["REDIS_HOST"], app.config["REDIS_PORT"], app.config["REDIS_DB"]
         )
     )
+
     if app.config["REDIS_PASSWORD"] is not None and app.config["REDIS_PASSWORD"] != "":
         redis_client = Redis(
             host=app.config["REDIS_HOST"],
