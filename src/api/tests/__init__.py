@@ -6,10 +6,14 @@
 import os
 from dotenv import load_dotenv
 from .test_app import *  # noqa
-from flaskr.common.config import get_config
+from flaskr.common.config import get_config, EnvironmentConfigError
 
 # Load environment variables first
 load_dotenv()
 
 # Set Django settings module using get_config
-os.environ["DJANGO_SETTINGS_MODULE"] = get_config("DJANGO_SETTINGS_MODULE")
+try:
+    os.environ["DJANGO_SETTINGS_MODULE"] = get_config("DJANGO_SETTINGS_MODULE")
+except EnvironmentConfigError:
+    # If configuration not initialized, use default
+    os.environ["DJANGO_SETTINGS_MODULE"] = "api.settings"
